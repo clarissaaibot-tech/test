@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Seat View · Aircraft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../shared/engine.js"></script>
+<script>
+(() => {
+// Single-aisle jet. Nose toward -z. Cabin floor y = 0, walls at x = ±1.85.
+// Rows 1-3 business (2-2), rows 4-24 economy (3-3), exit row 12 has extra pitch. Wing roots over rows 10-15.
+const WALL = 1.85, WIN_Y = 1.05;
+const BIZ = [1, 2, 3], LAST = 24, EXIT = [12], WING = [10, 15];
+const rowZ = []; let z = -10;
+for (let r = 1; r <= LAST; r++) { rowZ[r] = z; z += r <= 3 ? 1.0 : (EXIT.includes(r) ? 0.95 : 0.78); if (r === 3) z += 0.6; }
+const CABIN_END = z + 0.6;
+const pitchCm = r => r <= 3 ? 96 : EXIT.includes(r) ? 91 : 76;
+const BIZ_X = { A: -1.2, C: -0.55, D: 0.55, F: 1.2 };
+const ECO_X = { A: -1.42, B: -0.96, C: -0.5, D: 0.5, E: 0.96, F: 1.42 };
+const kind = (L) => L === 'A' || L === 'F' ? 'window' : (L === 'C' || L === 'D') ? 'aisle' : 'middle';
+const zMin = rowZ[1] - 1.6, zMax = CABIN_END;
+const MX = x => 50 + x * 19, MY = zz => 36 + (zz - zMin) * (138 / (zMax - zMin));
+const seats = [];
+for (let r = 1; r <= LAST; r++) {
+  const xs = r <= 3 ? BIZ_X : ECO_X;
+  Object.entries(xs).forEach(([L, x]) => {
+    const k = r <= 3 ? (L === 'A' || L === 'F' ? 'window' : 'aisle') : kind(L);
+    seats.push({ r, L, k, tier: r <= 3 ? 'prem' : 'std', name: `Row ${r}, Seat ${r}${L}`, short: `${r}${L}`, x, y: 0, z: rowZ[r], rot: 0,
+      mx: MX(x), my: MY(rowZ[r]), ms: r <= 3 ? 9.5 : 7.4, mhr: 0.6 });
+  });
+}
+let rowNums = '';
+for (let r = 1; r <= LAST; r++) rowNums += `<text x="50" y="${MY(rowZ[r]) + 0.7}" text-anchor="middle" font-size="1.8" fill="#9a8f89" font-family="IBM Plex Mono,monospace">${r}</text>`;
+const decor = `
+  <path d="M${MX(-WALL)} ${MY(zMin + 2.2)} Q${MX(-WALL)} ${MY(zMin - 3)} 50 ${MY(zMin - 5)} Q${MX(WALL)} ${MY(zMin - 3)} ${MX(WALL)} ${MY(zMin + 2.2)} L${MX(WALL)} ${MY(zMax)} L${MX(-WALL)} ${MY(zMax)} Z" fill="#151011" stroke="#3a2e30" stroke-width=".4"/>
+  <path d="M${MX(-WALL)} ${MY(rowZ[WING[0]] - 0.4)} L4 ${MY(rowZ[WING[1]] + 1.6)} L4 ${MY(rowZ[WING[1]] + 3)} L${MX(-WALL)} ${MY(rowZ[WING[1]] + 0.6)} Z" fill="#2a2324"/>
+  <path d="M${MX(WALL)} ${MY(rowZ[WING[0]] - 0.4)} L96 ${MY(rowZ[WING[1]] + 1.6)} L96 ${MY(rowZ[WING[1]] + 3)} L${MX(WALL)} ${MY(rowZ[WING[1]] + 0.6)} Z" fill="#2a2324"/>
+  <text x="6" y="${MY(rowZ[15]) + 0.8}" font-size="2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">WING</text>
+  ${EXIT.map(r => `<text x="${MX(-WALL) - 1}" y="${MY(rowZ[r]) + 0.7}" text-anchor="end" font-size="1.8" fill="#f3b33d" font-family="IBM Plex Mono,monospace">EXIT</text><text x="${MX(WALL) + 1}" y="${MY(rowZ[r]) + 0.7}" font-size="1.8" fill="#f3b33d" font-family="IBM Plex Mono,monospace">EXIT</text>`).join('')}
+  <text x="50" y="${MY(zMin) + 0.5}" text-anchor="middle" font-size="2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">GALLEY · FRONT</text>
+  <text x="50" y="${MY(zMax) - 1}" text-anchor="middle" font-size="2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">TOILETS · GALLEY</text>
+  ${rowNums}`;
+
+SeatView({
+  title: 'Northline 214', subtitle: 'Lisbon → Copenhagen · Tue 18 Nov',
+  optionsLabel: 'Flight', defaultOption: 0, currency: '€',
+  options: [
+    { label: '07:40', tag: 'NL214', seed: 6, sky: 'day' },
+    { label: '17:55', tag: 'NL218', seed: 15, sky: 'dusk' },
+  ],
+  tiers: { std: 'Economy', prem: 'Business' },
+  seats,
+  takenProb: s => s.k === 'middle' ? 0.35 : 0.55,
+  price: s => s.tier === 'prem' ? 0 : EXIT.includes(s.r) ? 32 : s.r <= 7 ? 18 : s.k === 'middle' ? 6 : 12,
+  bookVerb: 'Select seat',
+  hint: 'Tap a seat to see the cabin and window from it.',
+  map: { aspect: 100 / 180, seat: 7.4, decor, miniDecor: '' },
+  chair: { color: 0x2b3a55, prem: 0x5a3a2a, backH: 0.78, w: 0.42, seatH: 0.45, premScale: 1.35, backTilt: -0.12, armColor: 0x1a1f2a },
+  people: [0x2b2f3a, 0x3a2b2b, 0x1e2a24, 0x4a4038, 0x22252c],
+  fovPortrait: 102, fovWide: 82,
+  look: { yaw: 1.5, pitch: 0.45 },
+  overview: { pos: [0, 1.75, CABIN_END - 0.5], look: [0, 1.2, rowZ[1]] },
+  approach: () => ({ pos: [0, 1.75, CABIN_END - 0.5], look: [0, 1.2, rowZ[1]] }),
+  pose: s => {
+    const ex = s.x * 0.96, ey = 1.22, ez = s.z + 0.15;
+    if (s.k === 'window') { const sx = Math.sign(s.x); return { pos: [s.x * 0.92, ey, ez], look: [sx * 5, 0.8, ez - 2.6] }; }
+    return { pos: [ex, ey, ez], look: [ex * 0.7, 1.15, ez - 6] };
+  },
+  metrics(s) {
+    const overWing = s.r >= WING[0] && s.r <= WING[1];
+        let verdict, note;
+    const winTxt = s.k === 'window' ? (overWing ? 'wing' : 'clear') : 'none';
+    if (s.tier === 'prem') { verdict = 'Business'; note = s.k === 'window' ? 'Wider seat with 96 cm pitch and a clear window. Nobody climbs over you to reach the aisle in a 2-2 row.' : 'Wider seat with 96 cm pitch and direct aisle access. You board and leave first.'; }
+    else if (EXIT.includes(s.r)) { verdict = 'Extra legroom'; note = 'Exit row: 15 cm more legroom than standard economy. You must be over 16 and willing to help in an emergency.'; }
+    else if (s.k === 'window' && overWing) { verdict = 'Over the wing'; note = 'The smoothest place in turbulence, but the wing fills the lower half of your window.'; }
+    else if (s.k === 'window') { verdict = 'Window, clear view'; note = 'Nothing between you and the view, and a wall to lean on if you want to sleep.'; }
+    else if (s.k === 'middle') { verdict = 'Middle seat'; note = 'Neighbours on both sides and no wall to lean on. Pick it to sit together with a group.'; }
+    else { verdict = 'Aisle'; note = 'Get up whenever you like. The trolley and passing elbows come by your shoulder.'; }
+    if (s.r >= LAST - 1) note += ' The toilets and rear galley are right behind you.';
+    else if (s.tier === 'std' && s.r <= 6) note += ' Near the front, so you leave the plane early.';
+    return { verdict, note, stats: [[pitchCm(s.r) + ' cm', 'seat pitch'], [winTxt === 'clear' ? 'Clear' : winTxt === 'wing' ? 'Wing' : '—', 'window view'], [(n => n === 0 ? 'Exit row' : n + (n === 1 ? ' row' : ' rows'))(Math.min(Math.abs(s.r - EXIT[0]), s.r <= 6 ? s.r : 99, LAST + 1 - s.r)), 'to an exit']] };
+  },
+  ticket: (s, o) => ({ eyebrow: 'Seat confirmed', title: 'Lisbon → Copenhagen', when: `Tue 18 Nov · ${o.tag} · departs ${o.label}`, fields: [['Seat', s.short], ['Cabin', s.tier === 'prem' ? 'Business' : 'Economy']] }),
+  codePrefix: 'NL',
+  doneNote: 'Your seat now shows as yours on the seat map. It is printed on your boarding pass.',
+  build(L, o) {
+    const { T, scene, box, mat, basic } = L;
+    const hemi = new T.HemisphereLight(0xf2f4ff, 0x3a3634, 0.75); scene.add(hemi);
+    const sun = new T.DirectionalLight(0xffffff, 0.8); sun.position.set(-30, 40, -10); scene.add(sun);
+    const cabinLights = [];
+    for (let zz = rowZ[1]; zz < CABIN_END; zz += 6) { const p = new T.PointLight(0xfff3e2, 0.35, 7, 2); p.position.set(0, 2.05, zz); scene.add(p); cabinLights.push(p); }
+    const len = zMax - zMin + 3, zc = (zMax + zMin) / 2;
+    // floor with carpet and aisle runner
+    box(WALL * 2, 0.08, len, mat(0x3a3f4a), 0, -0.04, zc);
+    box(0.75, 0.01, len, mat(0x26365a), 0, 0.005, zc);
+    // side walls with window holes
+    const panel = mat(0xe8e6e1, { roughness: 0.7 });
+    const winPos = []; for (let zz = zMin + 0.5; zz < zMax - 0.3; zz += 0.53) winPos.push(zz);
+    [-1, 1].forEach(sx => {
+      const shape = new T.Shape(); shape.moveTo(zMin, 0); shape.lineTo(zMax, 0); shape.lineTo(zMax, 1.75); shape.lineTo(zMin, 1.75); shape.lineTo(zMin, 0);
+      winPos.forEach(zz => {
+        const h = new T.Path(), w = 0.15, hh = 0.21, cy = WIN_Y, r = 0.09;
+        h.moveTo(zz - w, cy - hh + r); h.quadraticCurveTo(zz - w, cy - hh, zz - w + r, cy - hh); h.lineTo(zz + w - r, cy - hh); h.quadraticCurveTo(zz + w, cy - hh, zz + w, cy - hh + r);
+        h.lineTo(zz + w, cy + hh - r); h.quadraticCurveTo(zz + w, cy + hh, zz + w - r, cy + hh); h.lineTo(zz - w + r, cy + hh); h.quadraticCurveTo(zz - w, cy + hh, zz - w, cy + hh - r); h.lineTo(zz - w, cy - hh + r);
+        shape.holes.push(h);
+      });
+      const geo = new T.ShapeGeometry(shape, 6);
+      const m = new T.Mesh(geo, new T.MeshStandardMaterial({ color: 0xb8b2a8, roughness: 0.8, side: T.DoubleSide }));
+      m.rotation.y = -Math.PI / 2; m.position.x = sx * WALL; scene.add(m);
+      // window shades (half open) and frames
+      winPos.forEach((zz, i) => { const shade = box(0.02, 0.1, 0.31, mat(0x8f8a82), sx * (WALL - 0.02), WIN_Y + 0.17, zz); if (i % 5 === 3) shade.scale.y = 3.1, shade.position.y = WIN_Y + 0.02; });
+    });
+    // overhead bins and curved ceiling
+    [-1, 1].forEach(sx => {
+      box(0.75, 0.45, len - 3, panel, sx * (WALL - 0.42), 1.98, zc);
+      box(0.03, 0.03, len - 3, basic(0xfff2d9), sx * (WALL - 0.8), 1.74, zc);
+    });
+    box(WALL * 2, 0.05, len, mat(0xf1efea), 0, 2.3, zc);
+    [-1, 1].forEach(sx => box(0.05, 0.6, len, panel, sx * WALL, 2.0, zc));
+    // bulkheads
+    box(WALL * 2, 2.2, 0.1, panel, 0, 1.1, rowZ[1] - 1.2);
+    box(WALL * 2, 2.2, 0.1, panel, 0, 1.1, rowZ[4] - 0.75).scale.x = 0.62;
+    box(WALL * 2, 2.2, 0.1, panel, 0, 1.1, zMax + 0.2);
+    // exit signs
+    EXIT.forEach(r => [-1, 1].forEach(sx => box(0.02, 0.1, 0.3, basic(0x41d36b), sx * (WALL - 0.05), 1.65, rowZ[r] - 0.4)));
+    // outside: wing + engine, sky dome, cloud deck
+    const wingShape = new T.Shape();
+    wingShape.moveTo(0, 0); wingShape.lineTo(15.5, 6.8); wingShape.lineTo(15.5, 8.2); wingShape.lineTo(0, 5.4); wingShape.lineTo(0, 0);
+    const wingGeo = new T.ExtrudeGeometry(wingShape, { depth: 0.22, bevelEnabled: false });
+    const wingMat = mat(0xc9ccd2, { roughness: 0.45, metalness: 0.3 });
+    [-1, 1].forEach(sx => {
+      const w = new T.Mesh(wingGeo, wingMat);
+      w.rotation.x = Math.PI / 2; w.scale.x = sx; w.position.set(sx * (WALL + 0.25), 0.15, rowZ[WING[0]] - 0.6); w.rotation.z = 0; scene.add(w);
+      w.rotateOnWorldAxis(new T.Vector3(0, 0, 1), sx * 0.07);
+      const eng = new T.Mesh(new T.CylinderGeometry(0.95, 0.85, 3.4, 24), mat(0xb8bcc4, { metalness: .4, roughness: .4 }));
+      eng.rotation.x = Math.PI / 2; eng.position.set(sx * 5.4, -0.9, rowZ[WING[0]] + 1.2); scene.add(eng);
+      const intake = new T.Mesh(new T.CircleGeometry(0.85, 24), mat(0x202226)); intake.position.set(sx * 5.4, -0.9, rowZ[WING[0]] - 0.51); intake.rotation.y = Math.PI; scene.add(intake);
+    });
+    box(3.6, 0.4, len, mat(0xd9dbdf), 0, -0.3, zc); // belly
+    const sky = new T.Mesh(new T.SphereGeometry(800, 32, 16), new T.MeshBasicMaterial({ side: T.BackSide, fog: false })); scene.add(sky);
+    const clouds = L.canvasTex(1024, 1024, (g, w, h) => {
+      g.fillStyle = '#e9edf3'; g.fillRect(0, 0, w, h);
+      const r = L.rng(9);
+      for (let i = 0; i < 900; i++) { const x = r() * w, y = r() * h, rad = 10 + r() * 60; const gr = g.createRadialGradient(x, y, 0, x, y, rad); const c = r() < 0.5 ? '255,255,255' : '196,206,220'; gr.addColorStop(0, `rgba(${c},.55)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+    });
+    clouds.wrapS = clouds.wrapT = T.RepeatWrapping; clouds.repeat.set(6, 6);
+    const deck = new T.Mesh(new T.PlaneGeometry(3000, 3000), new T.MeshBasicMaterial({ map: clouds, fog: true }));
+    deck.rotation.x = -Math.PI / 2; deck.position.y = -260; scene.add(deck);
+    scene.fog = new T.Fog(0xdfe6ef, 300, 1400);
+    function setSky(no) {
+      const day = no.sky === 'day';
+      const t = L.canvasTex(16, 512, (g) => { const gr = g.createLinearGradient(0, 0, 0, 512);
+        if (day) { gr.addColorStop(0, '#1a56a8'); gr.addColorStop(0.42, '#5f9be0'); gr.addColorStop(0.5, '#b8d4f0'); }
+        else { gr.addColorStop(0, '#1a1f45'); gr.addColorStop(0.4, '#c0607a'); gr.addColorStop(0.5, '#ffb46a'); }
+        gr.addColorStop(1, day ? '#c8d3e0' : '#5a4a5a'); g.fillStyle = gr; g.fillRect(0, 0, 16, 512); });
+      sky.material.map = t; sky.material.needsUpdate = true;
+      deck.material.color.set(day ? '#eef2f8' : '#e2a99a');
+      scene.fog.color.set(day ? '#b8d4f0' : '#d9967f');
+      scene.background = new T.Color(day ? '#dfe9f4' : '#ffb46a');
+      sun.color.set(day ? '#ffffff' : '#ffb27a'); sun.position.set(day ? -30 : -60, day ? 40 : 6, -10);
+      hemi.intensity = day ? 0.75 : 0.55; cabinLights.forEach(p => p.intensity = day ? 0.3 : 0.55);
+    }
+    setSky(o);
+    return { setOption: setSky, tick(t) { clouds.offset.y = (t * 0.02) % 1; } };
+  },
+});
+})();
+</script>
+</body>
+</html>

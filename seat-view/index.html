@@ -1,517 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Seat View</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta name="description" content="See the view from your seat before you book: cinema, concert, stadium, restaurant and aircraft.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one phone-sized app column, centred on a dark auditorium wall. Two views stack inside it: seat map, and 3D view from the seat. */
+/* Layout: a single column of venue tickets, each a link into that venue's seat picker. */
 :root{
-  --wall:#070506;          /* page backdrop */
-  --velvet:#100c0d;        /* app ground */
-  --panel:#1a1415;         /* sheets and chips */
-  --line:#2c2324;          /* hairlines, empty seat outline */
-  --ink:#f4ede5;           /* primary text */
-  --mute:#9a8f89;          /* secondary text */
-  --lamp:#f3b33d;          /* selection: projector amber */
-  --lamp-ink:#1d1406;      /* text on amber */
-  --recliner:#8a2a33;      /* recliner seats */
-  --taken:#151011;         /* taken seats */
-  --display:"Archivo",ui-sans-serif,system-ui,sans-serif;
-  --body:"Archivo",ui-sans-serif,system-ui,sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --wall:#0b0809; --card:#161112; --line:#2c2324; --ink:#f4ede5; --mute:#9a8f89; --lamp:#f3b33d;
+  --display:"Archivo",ui-sans-serif,system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
   color-scheme:dark;
 }
-html,body{height:100%}
-body{background:var(--wall);color:var(--ink);font-family:var(--body);overflow:hidden}
-.stage{height:100%;box-sizing:border-box;display:grid;place-items:center;padding-block:16px;
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--wall);color:var(--ink);font-family:var(--display);min-height:100vh;
+  background-image:radial-gradient(90% 50% at 50% -10%,#3a2410 0%,transparent 70%)}
+main{max-width:720px;margin:0 auto;padding-block:56px 64px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.phone{position:relative;width:min(400px,100%);height:min(860px,100%);background:var(--velvet);border-radius:34px;overflow:hidden;
-  box-shadow:0 0 0 1px var(--line),0 40px 120px -30px #000}
-@media (max-width:480px){.phone{border-radius:22px}}
-button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
-
-/* ---------- map view ---------- */
-.view{position:absolute;inset:0;display:flex;flex-direction:column;transition:opacity .35s ease,transform .35s ease}
-.view[aria-hidden="true"]{opacity:0;pointer-events:none;transform:scale(.985)}
-header.top{display:grid;grid-template-columns:36px 1fr 36px;align-items:center;padding:18px 16px 6px;gap:8px}
-.icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:transparent;display:grid;place-items:center}
-.icon-btn svg{width:16px;height:16px}
-.title{text-align:center}
-.title h1{margin:0;font-family:var(--display);font-stretch:118%;font-weight:750;font-size:17px;letter-spacing:.01em}
-.title p{margin:2px 0 0;font-size:11.5px;color:var(--mute)}
-.times{display:flex;justify-content:center;gap:6px;padding:12px 16px 4px}
-.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:baseline}
-.chip small{font-family:var(--mono);font-size:9.5px;color:var(--mute);letter-spacing:.06em}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--velvet);border-color:var(--ink)}
-.chip[aria-pressed="true"] small{color:var(--velvet);opacity:.7}
-.screen-arc{position:relative;margin:10px 20px 0;height:52px}
-.screen-arc svg{width:100%;height:100%;overflow:visible}
-.screen-arc span{position:absolute;left:0;right:0;top:30px;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.42em;color:var(--mute)}
-.map-wrap{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:0 14px}
-.grid{display:grid;grid-template-columns:14px repeat(3,1fr) 9px repeat(9,1fr) 9px repeat(3,1fr) 14px;gap:5px 3px;align-items:center}
-.rl{font-family:var(--mono);font-size:9px;color:var(--mute);text-align:center}
-.seat{aspect-ratio:1;border-radius:4px 4px 3px 3px;border:1px solid var(--line);background:transparent;padding:0;position:relative;transition:transform .12s,background .15s}
-.seat.std:not(.taken){background:#3d2f30;border-color:#544243}
-.seat.rec:not(.taken){background:var(--recliner);border-color:#a3404a}
-.seat.taken{background:var(--taken);border-color:#1f1718;cursor:not-allowed}
-.seat.taken::after{content:"";position:absolute;inset:34%;border-radius:50%;background:#3a2e2f}
-.seat.mine{background:transparent!important;border:1.5px solid var(--lamp)!important;cursor:default}
-.seat.sel{background:var(--lamp)!important;border-color:var(--lamp)!important;transform:scale(1.18);box-shadow:0 0 14px -2px var(--lamp)}
-.seat:not(.taken):not(.mine):hover{transform:scale(1.15)}
-.gap{height:1px}
-.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 14px;padding:16px 8px 6px;font-size:10.5px;color:var(--mute)}
-.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
-.hint{text-align:center;font-size:11px;color:var(--mute);margin:4px 0 0}
-footer.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--panel)}
-footer.bar .sum{min-width:0}
-footer.bar .sum small{display:block;font-size:11px;color:var(--mute)}
-footer.bar .sum strong{font-family:var(--display);font-stretch:110%;font-size:18px;font-variant-numeric:tabular-nums}
-.btn{border:0;border-radius:999px;padding:12px 20px;font-weight:700;font-size:13.5px;white-space:nowrap}
-.btn.primary{background:var(--lamp);color:var(--lamp-ink)}
-.btn.primary:disabled{background:var(--line);color:var(--mute);cursor:not-allowed}
-.btn.light{background:var(--ink);color:var(--velvet)}
-.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
-
-/* ---------- seat view ---------- */
-#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
-#gl:active{cursor:grabbing}
-.v-top{position:absolute;top:18px;left:16px;right:16px;display:grid;grid-template-columns:36px 1fr 36px;align-items:center;z-index:2}
-.v-top .icon-btn{background:#0008;backdrop-filter:blur(8px);border-color:#ffffff22}
-.pill{justify-self:center;background:#0009;backdrop-filter:blur(8px);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;display:flex;gap:7px;align-items:center}
-.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px var(--lamp)}
-.drag{position:absolute;left:0;right:0;top:64px;text-align:center;font-size:11px;color:#fff9;z-index:2;transition:opacity .6s;pointer-events:none}
-.sheet{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#151011ee;backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:24px;padding:10px 16px 16px;z-index:2;transform:translateY(0);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
-.view[aria-hidden="true"] .sheet{transform:translateY(110%)}
-.handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 10px}
-.sheet-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--lamp)}
-.sheet h2{margin:4px 0 2px;font-family:var(--display);font-stretch:108%;font-weight:750;font-size:22px;letter-spacing:-.005em}
-.sheet .sub{margin:0;font-size:12px;color:var(--mute)}
-.note{margin:10px 0 0;font-size:12.5px;line-height:1.45;color:#d9cfc6}
-.mini{display:grid;grid-template-columns:repeat(17,4px);gap:2px;padding:6px 6px 4px;border:1px solid var(--line);border-radius:8px;flex:none}
-.mini::before{content:"";grid-column:1/-1;height:2px;border-radius:2px;background:var(--mute);opacity:.6;margin-bottom:3px}
-.mini b{width:4px;height:4px;border-radius:1px;background:#3a2f30}
-.mini b.g{background:transparent}
-.mini b.s{background:var(--lamp);box-shadow:0 0 4px var(--lamp)}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:14px 0}
-.stat{background:#ffffff08;border:1px solid var(--line);border-radius:12px;padding:9px 10px}
-.stat b{display:block;font-family:var(--mono);font-weight:500;font-size:16px;font-variant-numeric:tabular-nums}
-.stat small{font-size:10.5px;color:var(--mute)}
-.actions{display:grid;grid-template-columns:1fr 1.3fr;gap:8px}
-.actions .btn{padding:13px 10px}
-
-/* ---------- ticket ---------- */
-.ticket-view{justify-content:center;align-items:center;padding:24px;gap:18px;background:radial-gradient(120% 60% at 50% 0%,#2a1c10 0%,var(--velvet) 60%)}
-.ticket{width:100%;max-width:320px;background:var(--ink);color:var(--velvet);border-radius:18px;overflow:hidden;position:relative}
-.ticket .t-top{padding:20px 20px 16px}
-.ticket .t-top .eyebrow{color:#8a5a10}
-.ticket h3{margin:6px 0 2px;font-family:var(--display);font-stretch:120%;font-size:22px;font-weight:800}
-.ticket p{margin:0;font-size:12.5px;color:#5d524c}
-.t-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 20px;border-top:1.5px dashed #c9bdb2}
-.t-grid small{display:block;font-size:10px;color:#7d716a;text-transform:uppercase;letter-spacing:.08em}
-.t-grid b{font-family:var(--mono);font-weight:500;font-size:15px}
-.t-code{padding:14px 20px 18px;border-top:1.5px dashed #c9bdb2;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.bars{height:34px;flex:1;background:repeating-linear-gradient(90deg,#100c0d 0 2px,transparent 2px 4px,#100c0d 4px 5px,transparent 5px 8px,#100c0d 8px 11px,transparent 11px 12px)}
-.t-code b{font-family:var(--mono);font-size:13px;letter-spacing:.12em}
-.ticket-view .done-note{font-size:12.5px;color:var(--mute);text-align:center;max-width:280px;margin:0}
-@media (prefers-reduced-motion:reduce){.view,.sheet,.seat{transition:none}}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--lamp)}
+h1{margin:10px 0 12px;font-stretch:125%;font-weight:800;font-size:clamp(40px,9vw,72px);line-height:.95;letter-spacing:-.01em;text-wrap:balance}
+.lede{margin:0 0 36px;max-width:52ch;color:#d4cac1;font-size:16px;line-height:1.5;font-stretch:100%}
+.list{display:grid;gap:12px}
+a.venue{display:grid;grid-template-columns:92px 1fr auto;gap:18px;align-items:center;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);color:inherit;text-decoration:none;transition:border-color .2s,transform .2s}
+a.venue:hover{border-color:#5a4632;transform:translateY(-2px)}
+a.venue:focus-visible{outline:2px solid var(--lamp);outline-offset:3px}
+.pict{width:92px;height:72px;border-radius:12px;background:#0f0b0c;border:1px solid var(--line);display:grid;place-items:center}
+.pict svg{width:76px;height:56px}
+.venue h2{margin:0;font-stretch:115%;font-size:20px;font-weight:750}
+.venue p{margin:4px 0 0;color:var(--mute);font-size:13.5px;line-height:1.4;font-stretch:100%}
+.venue .tag{font-family:var(--mono);font-size:10.5px;color:var(--lamp);letter-spacing:.08em;margin-top:8px;display:block}
+.go{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center}
+.go svg{width:14px;height:14px}
+footer{margin-top:36px;color:var(--mute);font-size:12.5px;line-height:1.5;font-stretch:100%}
+@media (max-width:520px){a.venue{grid-template-columns:64px 1fr;gap:14px}.pict{width:64px;height:56px}.pict svg{width:52px;height:40px}.go{display:none}}
+@media (prefers-reduced-motion:reduce){a.venue{transition:none}}
 </style>
-
-<div class="stage">
-<div class="phone" id="phone">
-
-  <!-- MAP -->
-  <section class="view" id="mapView" aria-hidden="false" aria-label="Choose a seat">
-    <header class="top">
-      <button class="icon-btn" aria-label="Back" tabindex="-1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 3 5 8l5 5"/></svg></button>
-      <div class="title"><h1 id="filmTitle">Dune Walker</h1><p id="hallLine">Kino Vela · Hall 3 · Fri 14 Nov</p></div>
-      <button class="icon-btn" aria-label="About" tabindex="-1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.8v.1"/></svg></button>
-    </header>
-    <div class="times" id="times" role="group" aria-label="Showtime"></div>
-    <div class="screen-arc" aria-hidden="true">
-      <svg viewBox="0 0 360 40" preserveAspectRatio="none"><defs><linearGradient id="sg" x1="0" x2="1"><stop offset="0" stop-color="#f4ede5" stop-opacity="0"/><stop offset=".5" stop-color="#f4ede5"/><stop offset="1" stop-color="#f4ede5" stop-opacity="0"/></linearGradient><linearGradient id="sg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4ede5" stop-opacity=".14"/><stop offset="1" stop-color="#f4ede5" stop-opacity="0"/></linearGradient></defs>
-        <path d="M10 22 Q180 -4 350 22 L330 44 Q180 22 30 44Z" fill="url(#sg2)"/>
-        <path d="M10 22 Q180 -4 350 22" fill="none" stroke="url(#sg)" stroke-width="2.2"/></svg>
-      <span>SCREEN</span>
-    </div>
-    <div class="map-wrap">
-      <div class="grid" id="grid"></div>
-      <div class="legend">
-        <span><i style="background:#3d2f30;border-color:#544243"></i>Standard</span>
-        <span><i style="background:var(--recliner);border-color:#a3404a"></i>Recliner</span>
-        <span><i style="background:var(--taken);border-color:transparent"></i>Taken</span>
-        <span><i style="background:var(--lamp);border-color:var(--lamp)"></i>Selected</span>
-      </div>
-      <p class="hint">Tap a seat to see the screen from it.</p>
-    </div>
-    <footer class="bar">
-      <div class="sum"><small id="sumLabel">Choose your seat</small><strong id="sumPrice">—</strong></div>
-      <button class="btn primary" id="openView" disabled>View from seat</button>
-    </footer>
-  </section>
-
-  <!-- SEAT VIEW -->
-  <section class="view" id="seatView" aria-hidden="true" aria-label="View from seat">
-    <canvas id="gl" aria-label="3D preview of the screen from the chosen seat. Drag to look around."></canvas>
-    <div class="v-top">
-      <button class="icon-btn" id="viewBack" aria-label="Back to seat map"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 3 5 8l5 5"/></svg></button>
-      <div class="pill" id="pill">View from F8</div>
-      <span></span>
-    </div>
-    <div class="drag" id="drag">Drag to look around</div>
-    <div class="sheet">
-      <div class="handle"></div>
-      <div class="sheet-head">
-        <div>
-          <div class="eyebrow" id="verdict">Sweet spot</div>
-          <h2 id="seatName">Row F, Seat 8</h2>
-          <p class="sub" id="seatSub">Standard · €12.50</p>
-        </div>
-        <div class="mini" id="mini" aria-hidden="true"></div>
-      </div>
-      <p class="note" id="note"></p>
-      <div class="stats">
-        <div class="stat"><b id="sDist">9.8 m</b><small>to screen</small></div>
-        <div class="stat"><b id="sAng">60°</b><small>of your view</small></div>
-        <div class="stat"><b id="sOff">0.3 m</b><small id="sOffL">from centre</small></div>
-      </div>
-      <div class="actions">
-        <button class="btn ghost" id="changeSeat">Change seat</button>
-        <button class="btn light" id="book">Book · €12.50</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- TICKET -->
-  <section class="view ticket-view" id="ticketView" aria-hidden="true" aria-label="Booking confirmed">
-    <div class="ticket">
-      <div class="t-top"><div class="eyebrow">Booked</div><h3 id="tFilm">Dune Walker</h3><p id="tWhen">Fri 14 Nov · 19:45 IMAX · Hall 3</p></div>
-      <div class="t-grid"><div><small>Row</small><b id="tRow">F</b></div><div><small>Seat</small><b id="tSeat">8</b></div><div><small>Paid</small><b id="tPaid">€12.50</b></div></div>
-      <div class="t-code"><div class="bars"></div><b id="tCode">KV-4R8T</b></div>
-    </div>
-    <p class="done-note">Your seat now shows as yours on the map. Show this code at the door.</p>
-    <button class="btn primary" id="done">Back to seat map</button>
-  </section>
-
-</div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-(() => {
-const ROWS = 'ABCDEFGHI'.split('');
-const NCOL = 15;
-const RECLINER = r => r >= 7;
-const SHOWS = [
-  { t:'17:30', fmt:'2D',   W:12.5, H:5.3, std:12.5, rec:16,   seed:11 },
-  { t:'19:45', fmt:'IMAX', W:17,   H:8.6, std:15.5, rec:19,   seed:27 },
-  { t:'22:15', fmt:'2D',   W:12.5, H:5.3, std:12.5, rec:16,   seed:53 },
-];
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let showIdx = 1, sel = null; // sel = {r,c}
-const mine = SHOWS.map(() => new Set());
-
-// ----- auditorium geometry (metres) -----
-const colX = c => { let x = (c - 7) * 0.62; if (c <= 2) x -= 0.6; if (c >= 12) x += 0.6; return x; };
-const rowZ = r => 4.8 + r * 1.12 + (r >= 7 ? (r - 6) * 0.45 : 0);
-const rowY = r => r * 0.4;
-const SCREEN_BOTTOM = 1.1;
-
-function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const takenCache = SHOWS.map(s => {
-  const rand = rng(s.seed), set = new Set();
-  for (let r = 0; r < 9; r++) for (let c = 0; c < NCOL; c++) {
-    const central = 1 - Math.abs(c - 7) / 9, mid = 1 - Math.abs(r - 5) / 6;
-    if (rand() < 0.12 + 0.38 * central * mid) set.add(r + ':' + c);
-  }
-  return set;
-});
-const isTaken = (r,c) => takenCache[showIdx].has(r+':'+c) || mine[showIdx].has(r+':'+c);
-const price = r => RECLINER(r) ? SHOWS[showIdx].rec : SHOWS[showIdx].std;
-const eur = v => '€' + v.toFixed(2);
-
-function metrics(r, c){
-  const s = SHOWS[showIdx], x = colX(c), z = rowZ(r) + 0.15;
-  const eyeY = rowY(r) + 1.15, cy = SCREEN_BOTTOM + s.H/2;
-  const dist = Math.hypot(x, z, cy - eyeY);
-  const ang = (Math.atan((s.W/2 - x)/z) + Math.atan((s.W/2 + x)/z)) * 180/Math.PI;
-  let verdict, note;
-  if (ang >= 74) { verdict = 'Up close'; note = 'The screen fills your vision. Expect to turn your head for the edges.'; }
-  else if (Math.abs(x) > 2.8) { verdict = 'Off to the side'; note = 'You see the screen at an angle, so the far side looks narrower.'; }
-  else if (ang >= 44) { verdict = 'Sweet spot'; note = 'Fills most of your view without head-turning, close to the centre line.'; }
-  else { verdict = 'Full picture'; note = 'The whole frame sits comfortably in view, but it feels smaller.'; }
-  if (s.fmt === 'IMAX' && verdict === 'Up close') note += ' On IMAX the top of the frame is high above you.';
-  return { dist, ang, x, verdict, note };
-}
-
-// ----- map UI -----
-const $ = id => document.getElementById(id);
-const grid = $('grid'), times = $('times');
-SHOWS.forEach((s, i) => {
-  const b = document.createElement('button');
-  b.className = 'chip'; b.innerHTML = `${s.t}<small>${s.fmt}</small>`;
-  b.onclick = () => { showIdx = i; sel = null; renderTimes(); renderGrid(); buildScreen(); };
-  times.appendChild(b);
-});
-function renderTimes(){ [...times.children].forEach((b,i) => b.setAttribute('aria-pressed', i === showIdx)); }
-function renderGrid(){
-  grid.innerHTML = '';
-  ROWS.forEach((L, r) => {
-    const lab = () => { const d = document.createElement('div'); d.className = 'rl'; d.textContent = L; return d; };
-    grid.appendChild(lab());
-    for (let c = 0; c < NCOL; c++) {
-      if (c === 3 || c === 12) { const g = document.createElement('div'); g.className = 'gap'; grid.appendChild(g); }
-      const b = document.createElement('button');
-      const k = r+':'+c, own = mine[showIdx].has(k), tk = takenCache[showIdx].has(k);
-      b.className = 'seat ' + (RECLINER(r) ? 'rec' : 'std') + (tk ? ' taken' : '') + (own ? ' mine' : '') + (sel && sel.r === r && sel.c === c ? ' sel' : '');
-      b.setAttribute('aria-label', `Row ${L}, seat ${c+1}, ${RECLINER(r)?'recliner':'standard'}, ${own ? 'booked by you' : tk ? 'taken' : eur(price(r))}`);
-      if (tk || own) b.disabled = true;
-      else b.onclick = () => { sel = { r, c }; renderGrid(); openSeat(); };
-      grid.appendChild(b);
-    }
-    grid.appendChild(lab());
-  });
-  $('sumLabel').textContent = sel ? `Row ${ROWS[sel.r]} · Seat ${sel.c+1}` : 'Choose your seat';
-  $('sumPrice').textContent = sel ? eur(price(sel.r)) : '—';
-  $('openView').disabled = !sel;
-}
-
-// ----- three.js scene -----
-const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.outputEncoding = THREE.sRGBEncoding;
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x050304);
-scene.fog = new THREE.Fog(0x050304, 14, 42);
-const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 100);
-
-scene.add(new THREE.HemisphereLight(0xfff1dc, 0x1a0b0b, 0.32));
-const screenLight = new THREE.PointLight(0xffe2b8, 0.9, 30, 1.8);
-scene.add(screenLight);
-const fill = new THREE.DirectionalLight(0xffd9b0, 0.35); fill.position.set(0, 6, -2); scene.add(fill);
-
-// film frame drawn on a canvas
-const film = (() => {
-  const c = document.createElement('canvas'); c.width = 1600; c.height = 760;
-  const g = c.getContext('2d');
-  const sky = g.createLinearGradient(0,0,0,760);
-  sky.addColorStop(0,'#c9b193'); sky.addColorStop(.55,'#eedcc1'); sky.addColorStop(1,'#e9cfa8');
-  g.fillStyle = sky; g.fillRect(0,0,1600,760);
-  const sun = g.createRadialGradient(1120,300,10,1120,300,520);
-  sun.addColorStop(0,'rgba(255,248,232,.9)'); sun.addColorStop(1,'rgba(255,248,232,0)');
-  g.fillStyle = sun; g.fillRect(0,0,1600,760);
-  const layers = [
-    { y:430, a:26, f:.004, p:1.2, top:'#e4c49a', bot:'#cfa776' },
-    { y:480, a:38, f:.0032, p:2.5, top:'#ddb684', bot:'#bf935f' },
-    { y:560, a:52, f:.0024, p:.4,  top:'#d6a971', bot:'#a97947' },
-    { y:660, a:70, f:.0018, p:3.3, top:'#c9955b', bot:'#8d5f33' },
-  ];
-  let ridge = null;
-  layers.forEach((L, i) => {
-    g.beginPath(); g.moveTo(0,760);
-    const pts = [];
-    for (let x = 0; x <= 1600; x += 8) {
-      const y = L.y - L.a*Math.sin(x*L.f + L.p) - L.a*.45*Math.sin(x*L.f*2.3 + L.p*1.7);
-      pts.push([x,y]); g.lineTo(x,y);
-    }
-    g.lineTo(1600,760); g.closePath();
-    const gr = g.createLinearGradient(0, L.y - L.a, 0, 760);
-    gr.addColorStop(0, L.top); gr.addColorStop(1, L.bot);
-    g.fillStyle = gr; g.fill();
-    // lit crest
-    g.strokeStyle = 'rgba(255,244,222,.35)'; g.lineWidth = 2;
-    g.beginPath(); pts.forEach(([x,y],j) => j ? g.lineTo(x,y) : g.moveTo(x,y)); g.stroke();
-    if (i === 1) ridge = pts;
-  });
-  // lone walker on the second ridge
-  const [fx, fy] = ridge.reduce((m,p) => p[1] < m[1] && p[0] > 600 && p[0] < 1000 ? p : m, [800, 999]);
-  g.fillStyle = '#2b1d12';
-  g.fillRect(fx-2, fy-22, 5, 18); g.beginPath(); g.arc(fx+.5, fy-25, 3.4, 0, 7); g.fill();
-  g.strokeStyle = 'rgba(60,38,20,.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(fx+3, fy-3); g.lineTo(fx+46, fy+6); g.stroke();
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
-  return t;
-})();
-
-let screenGroup = null;
-function buildScreen(){
-  const s = SHOWS[showIdx];
-  if (screenGroup) { scene.remove(screenGroup); screenGroup.traverse(o => o.geometry && o.geometry.dispose()); }
-  screenGroup = new THREE.Group();
-  const geo = new THREE.PlaneGeometry(s.W, s.H, 40, 1);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) { const x = pos.getX(i); pos.setZ(i, 0.011 * x * x); }
-  geo.computeVertexNormals();
-  const tex = film.clone(); tex.needsUpdate = true;
-  const imgA = 1600/760, scrA = s.W/s.H;
-  if (scrA < imgA) { tex.repeat.set(scrA/imgA, 1); tex.offset.set((1 - scrA/imgA)/2, 0); }
-  else { tex.repeat.set(1, imgA/scrA); tex.offset.set(0, (1 - imgA/scrA)/2); }
-  const scr = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
-  scr.position.set(0, SCREEN_BOTTOM + s.H/2, 0);
-  screenGroup.add(scr);
-  const mask = new THREE.Mesh(new THREE.PlaneGeometry(s.W + 1.2, s.H + 1.2), new THREE.MeshBasicMaterial({ color: 0x020101 }));
-  mask.position.set(0, SCREEN_BOTTOM + s.H/2, -0.05);
-  screenGroup.add(mask);
-  scene.add(screenGroup);
-  screenLight.position.set(0, SCREEN_BOTTOM + s.H/2, 2.5);
-}
-
-// room
-const roomW = 21, backZ = rowZ(8) + 2.8, roomH = 12;
-const dark = new THREE.MeshStandardMaterial({ color: 0x140d0e, roughness: 1 });
-const carpet = new THREE.MeshStandardMaterial({ color: 0x1d1113, roughness: 1 });
-function box(w,h,d,mat,x,y,z){ const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); scene.add(m); return m; }
-box(roomW, 0.1, backZ + 1, carpet, 0, -0.05, backZ/2 - 0.5);
-for (let r = 0; r < 9; r++) {
-  const zFront = r === 0 ? 4.1 : (rowZ(r-1) + rowZ(r))/2 + 0.1;
-  const zBack = r === 8 ? backZ : (rowZ(r) + rowZ(r+1))/2 + 0.1;
-  if (r > 0) box(roomW, rowY(r), zBack - zFront, carpet, 0, rowY(r)/2, (zFront + zBack)/2);
-}
-box(0.2, roomH, backZ + 1, dark, -roomW/2, roomH/2, backZ/2 - 0.5);
-box(0.2, roomH, backZ + 1, dark, roomW/2, roomH/2, backZ/2 - 0.5);
-box(roomW, roomH, 0.2, dark, 0, roomH/2, backZ);
-box(roomW, 0.2, backZ + 1, dark, 0, roomH, backZ/2 - 0.5);
-box(roomW, roomH, 0.2, new THREE.MeshStandardMaterial({ color: 0x0a0607, roughness: 1 }), 0, roomH/2, -0.4);
-// aisle step lights
-const stepMat = new THREE.MeshBasicMaterial({ color: 0xffb35c });
-for (let r = 0; r < 9; r++) for (const ax of [(colX(2)+colX(3))/2, (colX(11)+colX(12))/2])
-  box(0.18, 0.025, 0.04, stepMat, ax, rowY(r) + 0.02, rowZ(r) - 0.4);
-
-// seats (instanced)
-const seatList = [];
-for (let r = 0; r < 9; r++) for (let c = 0; c < NCOL; c++) seatList.push({ r, c });
-const N = seatList.length;
-const velvet = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 });
-const cushion = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), velvet, N);
-const back = new THREE.InstancedMesh(new THREE.BoxGeometry(0.54, 0.66, 0.13), velvet, N);
-const arms = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 0.1, 0.52), new THREE.MeshStandardMaterial({ color: 0x241517, roughness: .6 }), N * 2);
-const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 14, 10), new THREE.MeshStandardMaterial({ color: 0x0f0a0a, roughness: .9 }), N);
-const torsos = new THREE.InstancedMesh(new THREE.BoxGeometry(0.42, 0.34, 0.24), new THREE.MeshStandardMaterial({ color: 0x120c0c, roughness: .9 }), N);
-[cushion, back, arms, heads, torsos].forEach(m => scene.add(m));
-const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1,1,1), P = new THREE.Vector3();
-const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -0.16);
-const ident = new THREE.Quaternion();
-const RED = new THREE.Color(0x7a141c), REDR = new THREE.Color(0x601017), LAMP = new THREE.Color(0xf3b33d);
-seatList.forEach(({ r, c }, i) => {
-  const x = colX(c), y = rowY(r), z = rowZ(r), sc = RECLINER(r) ? 1.12 : 1;
-  S.set(sc, 1, sc);
-  M.compose(P.set(x, y + 0.42, z), ident, S); cushion.setMatrixAt(i, M);
-  M.compose(P.set(x, y + 0.8, z + 0.27), tilt, S); back.setMatrixAt(i, M);
-  M.compose(P.set(x - 0.3*sc, y + 0.62, z), ident, S); arms.setMatrixAt(i*2, M);
-  M.compose(P.set(x + 0.3*sc, y + 0.62, z), ident, S); arms.setMatrixAt(i*2+1, M);
-});
-function paintSeats(){
-  const hide = new THREE.Matrix4().makeScale(0,0,0);
-  seatList.forEach(({ r, c }, i) => {
-    const on = sel && sel.r === r && sel.c === c;
-    const col = on ? LAMP : RECLINER(r) ? REDR : RED;
-    cushion.setColorAt(i, col); back.setColorAt(i, col);
-    const occupied = isTaken(r, c) && !on;
-    const x = colX(c), y = rowY(r), z = rowZ(r);
-    const sway = ((r * 7 + c * 13) % 5 - 2) * 0.025, tall = ((r * 3 + c * 5) % 4) * 0.035;
-    if (occupied) {
-      M.compose(P.set(x + sway, y + 1.24 + tall, z + 0.1), ident, S.set(1, 1.15, 1)); heads.setMatrixAt(i, M);
-      M.compose(P.set(x, y + 0.86 + tall, z + 0.12), ident, S.set(1, 1, 1)); torsos.setMatrixAt(i, M);
-    } else { heads.setMatrixAt(i, hide); torsos.setMatrixAt(i, hide); }
-  });
-  [cushion, back, heads, torsos, arms].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
-}
-[cushion, back, arms, heads, torsos].forEach(m => m.instanceMatrix.needsUpdate = true);
-
-// camera rig
-const cur = { pos: new THREE.Vector3(0, 9, backZ - 1), look: new THREE.Vector3(0, 3, 0) };
-let from = null, to = null, t0 = 0, dur = 1300, yaw = 0, pitch = 0, active = false;
-function seatPose(r, c){
-  const s = SHOWS[showIdx];
-  return { pos: new THREE.Vector3(colX(c), rowY(r) + 1.28, rowZ(r) + 0.3), look: new THREE.Vector3(colX(c) * 0.15, SCREEN_BOTTOM + s.H * 0.45, 0) };
-}
-function flyTo(pose){
-  from = { pos: cur.pos.clone(), look: cur.look.clone() }; to = pose; t0 = performance.now();
-  if (reduce) { cur.pos.copy(pose.pos); cur.look.copy(pose.look); from = null; }
-}
-function resize(){
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (!w || !h) return;
-  renderer.setSize(w, h, false); camera.aspect = w / h;
-  // the info sheet covers the lower part, so shift the optical centre up to ~28% from the top
-  camera.fov = w / h < 0.6 ? 104 : 84;
-  camera.setViewOffset(w, h * 1.45, 0, h * 0.45, w, h);
-  camera.updateProjectionMatrix();
-}
-new ResizeObserver(resize).observe(canvas);
-function frame(now){
-  requestAnimationFrame(frame);
-  if (!active) return;
-  if (from) {
-    let k = Math.min(1, (now - t0) / dur); const e = k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3)/2;
-    cur.pos.lerpVectors(from.pos, to.pos, e); cur.look.lerpVectors(from.look, to.look, e);
-    if (k === 1) from = null;
-  }
-  if (!dragging) { yaw *= 0.94; pitch *= 0.94; }
-  camera.position.copy(cur.pos); camera.lookAt(cur.look);
-  camera.rotateY(yaw); camera.rotateX(pitch);
-  renderer.render(scene, camera);
-}
-requestAnimationFrame(frame);
-
-// drag to look
-let dragging = false, lx = 0, ly = 0;
-canvas.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); $('drag').style.opacity = 0; });
-canvas.addEventListener('pointermove', e => {
-  if (!dragging) return;
-  yaw = Math.max(-0.7, Math.min(0.7, yaw + (e.clientX - lx) * 0.004));
-  pitch = Math.max(-0.35, Math.min(0.35, pitch + (e.clientY - ly) * 0.003));
-  lx = e.clientX; ly = e.clientY;
-});
-const endDrag = () => { dragging = false; };
-canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
-
-// ----- view switching -----
-function show(which){
-  ['mapView','seatView','ticketView'].forEach(id => $(id).setAttribute('aria-hidden', id !== which));
-  active = which === 'seatView';
-  if (active) resize();
-}
-function openSeat(){
-  if (!sel) return;
-  const { r, c } = sel, m = metrics(r, c), L = ROWS[r];
-  paintSeats();
-  if (!active) { cur.pos.set(colX(c) * 0.4, 8.5, backZ - 0.8); cur.look.set(0, 3, 0); }
-  yaw = pitch = 0;
-  show('seatView');
-  flyTo(seatPose(r, c));
-  $('pill').textContent = `View from ${L}${c+1}`;
-  $('verdict').textContent = m.verdict;
-  $('seatName').textContent = `Row ${L}, Seat ${c+1}`;
-  $('seatSub').textContent = `${RECLINER(r) ? 'Recliner' : 'Standard'} · ${SHOWS[showIdx].t} ${SHOWS[showIdx].fmt} · ${eur(price(r))}`;
-  $('note').textContent = m.note;
-  $('sDist').textContent = m.dist.toFixed(1) + ' m';
-  $('sAng').textContent = Math.round(m.ang) + '°';
-  $('sOff').textContent = Math.abs(m.x) < 0.05 ? '0.0 m' : Math.abs(m.x).toFixed(1) + ' m';
-  $('sOffL').textContent = Math.abs(m.x) < 0.05 ? 'dead centre' : (m.x < 0 ? 'left of centre' : 'right of centre');
-  $('book').textContent = `Book · ${eur(price(r))}`;
-  const mini = $('mini'); mini.innerHTML = '';
-  for (let rr = 0; rr < 9; rr++) for (let cc = 0; cc < 17; cc++) {
-    const b = document.createElement('b');
-    const real = cc < 3 ? cc : cc === 3 ? -1 : cc < 13 ? cc - 1 : cc === 13 ? -1 : cc - 2;
-    if (real < 0) b.className = 'g'; else if (rr === r && real === c) b.className = 's';
-    mini.appendChild(b);
-  }
-  $('drag').style.opacity = 1;
-}
-$('openView').onclick = openSeat;
-$('viewBack').onclick = $('changeSeat').onclick = () => { show('mapView'); };
-$('book').onclick = () => {
-  const s = SHOWS[showIdx], { r, c } = sel;
-  mine[showIdx].add(r + ':' + c);
-  const code = 'KV-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-  $('tWhen').textContent = `Fri 14 Nov · ${s.t} ${s.fmt} · Hall 3`;
-  $('tRow').textContent = ROWS[r]; $('tSeat').textContent = c + 1; $('tPaid').textContent = eur(price(r)); $('tCode').textContent = code;
-  sel = null; renderGrid(); show('ticketView');
-};
-$('done').onclick = () => show('mapView');
-
-renderTimes(); renderGrid(); buildScreen(); paintSeats();
-})();
-</script>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Seat View</div>
+  <h1>See it from your seat before you book.</h1>
+  <p class="lede">Pick a seat on the map and the app puts you in it, in 3D. You see who sits in front of you, how big the screen or stage looks, and whether the wing blocks your window.</p>
+  <div class="list">
+    <a class="venue" href="cinema/">
+      <div class="pict"><svg viewBox="0 0 76 56" fill="none"><path d="M8 12 Q38 4 68 12" stroke="#f4ede5" stroke-width="2"/><g fill="#7a141c"><rect x="12" y="24" width="8" height="6" rx="1.5"/><rect x="24" y="24" width="8" height="6" rx="1.5"/><rect x="36" y="24" width="8" height="6" rx="1.5" fill="#f3b33d"/><rect x="48" y="24" width="8" height="6" rx="1.5"/><rect x="60" y="24" width="8" height="6" rx="1.5"/><rect x="12" y="34" width="8" height="6" rx="1.5"/><rect x="24" y="34" width="8" height="6" rx="1.5"/><rect x="36" y="34" width="8" height="6" rx="1.5"/><rect x="48" y="34" width="8" height="6" rx="1.5"/><rect x="60" y="34" width="8" height="6" rx="1.5"/></g></svg></div>
+      <div><h2>Cinema</h2><p>Distance to the screen and how much of your view it fills, for 2D and IMAX.</p><span class="tag">KINO VELA · HALL 3</span></div>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2l5 5-5 5"/></svg></span>
+    </a>
+    <a class="venue" href="concert/">
+      <div class="pict"><svg viewBox="0 0 76 56" fill="none"><rect x="22" y="6" width="32" height="12" rx="2" fill="#241a1c" stroke="#5a4632"/><path d="M30 6 L24 20 M46 6 L52 20" stroke="#ff4fa0" stroke-opacity=".7"/><path d="M38 6 L38 22" stroke="#5c7cff" stroke-opacity=".7"/><path d="M10 34 Q38 58 66 34" stroke="#26304a" stroke-width="5"/><path d="M14 42 Q38 64 62 42" stroke="#26304a" stroke-width="5"/><circle cx="38" cy="47" r="3" fill="#f3b33d"/></svg></div>
+      <div><h2>Concert</h2><p>Floor or tier, how far from the stage, and which seats sit on the sound desk line.</p><span class="tag">RIVERSIDE ARENA</span></div>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2l5 5-5 5"/></svg></span>
+    </a>
+    <a class="venue" href="stadium/">
+      <div class="pict"><svg viewBox="0 0 76 56" fill="none"><rect x="16" y="14" width="44" height="28" rx="2" fill="#1f3a22" stroke="#d9e6d3" stroke-opacity=".5"/><path d="M38 14 V42" stroke="#d9e6d3" stroke-opacity=".5"/><circle cx="38" cy="28" r="5" stroke="#d9e6d3" stroke-opacity=".5"/><rect x="16" y="5" width="44" height="6" fill="#1d3f8f"/><rect x="16" y="45" width="44" height="6" fill="#1d3f8f"/><rect x="6" y="14" width="6" height="28" fill="#1d3f8f"/><rect x="64" y="14" width="6" height="28" fill="#1d3f8f"/><circle cx="38" cy="48" r="2.6" fill="#f3b33d"/></svg></div>
+      <div><h2>Stadium</h2><p>Halfway line or behind the goal, height above the pitch, day or floodlit.</p><span class="tag">FERRYLANDS STADIUM</span></div>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2l5 5-5 5"/></svg></span>
+    </a>
+    <a class="venue" href="restaurant/">
+      <div class="pict"><svg viewBox="0 0 76 56" fill="none"><rect x="4" y="6" width="68" height="16" rx="2" fill="#c46a5a"/><circle cx="46" cy="20" r="6" fill="#ffd27a"/><rect x="4" y="20" width="68" height="4" fill="#3a3a5a"/><circle cx="20" cy="38" r="6" fill="#2c2324"/><circle cx="20" cy="29" r="2.6" fill="#f3b33d"/><circle cx="20" cy="47" r="2.6" fill="#2f4a3a"/><circle cx="52" cy="38" r="6" fill="#2c2324"/><circle cx="52" cy="29" r="2.6" fill="#2f4a3a"/><circle cx="52" cy="47" r="2.6" fill="#2f4a3a"/></svg></div>
+      <div><h2>Restaurant</h2><p>Which chair faces the sea and which has its back to the view, at lunch, sunset or night.</p><span class="tag">ASTER ROOFTOP · 32ND FLOOR</span></div>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2l5 5-5 5"/></svg></span>
+    </a>
+    <a class="venue" href="aircraft/">
+      <div class="pict"><svg viewBox="0 0 76 56" fill="none"><path d="M30 4 Q38 -2 46 4 V54 H30 Z" fill="#151011" stroke="#5a4632"/><path d="M30 24 L4 36 V40 L30 32 Z M46 24 L72 36 V40 L46 32 Z" fill="#2a2324"/><g fill="#2b3a55"><rect x="32" y="14" width="4" height="3" rx="1"/><rect x="40" y="14" width="4" height="3" rx="1"/><rect x="32" y="22" width="4" height="3" rx="1"/><rect x="40" y="22" width="4" height="3" rx="1"/><rect x="40" y="30" width="4" height="3" rx="1"/><rect x="32" y="38" width="4" height="3" rx="1"/><rect x="40" y="38" width="4" height="3" rx="1"/></g><rect x="32" y="30" width="4" height="3" rx="1" fill="#f3b33d"/></svg></div>
+      <div><h2>Aircraft</h2><p>Window, middle or aisle, legroom in centimetres, and whether the wing fills your window.</p><span class="tag">NORTHLINE 214 · LIS → CPH</span></div>
+      <span class="go" aria-hidden="true"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2l5 5-5 5"/></svg></span>
+    </a>
+  </div>
+  <footer>A design prototype. Venues, events, flights and prices are invented for the demo, and bookings are not real. Drag inside any 3D view to look around.</footer>
+</main>
+</body>
+</html>

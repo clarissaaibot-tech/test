@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Seat View · Concert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../shared/engine.js"></script>
+<script>
+(() => {
+// Arena: stage deck at z -9..0 (front edge z=0, deck height 1.6). Floor seats in front, raked horseshoe tier behind.
+const DECK = 1.6, O = { x: 0, z: 3 };
+const MX = x => 50 + x * 2.35, MZ = z => 8 + (z + 9) * 2.35;
+const deg = r => r * 180 / Math.PI;
+const seats = [];
+// floor block: 6 rows x 12, flat, premium
+for (let r = 0; r < 6; r++) for (let c = 0; c < 12; c++) {
+  const x = (c - 5.5) * 0.95 + (c >= 6 ? 0.6 : -0.6), z = 5 + r * 1.05;
+  seats.push({ sec: 'Floor', r, n: c + 1, tier: 'prem', name: `Floor · Row ${r + 1}, Seat ${c + 1}`, short: `FL${r + 1}-${c + 1}`, x, y: 0, z, rot: 0, mx: MX(x), my: MZ(z) });
+}
+// tier: 5 rows on arcs around O, aisles at ±24°
+const ROWN = 5;
+for (let k = 0; k < ROWN; k++) {
+  const R = 15 + k * 1.15, y = 1.2 + k * 0.62;
+  const step = 1.05 / R, span = 1.2;
+  let n = 0;
+  for (let a = -span; a <= span + 1e-6; a += step) {
+    if (Math.abs(Math.abs(a) - 0.42) < step * 0.8) continue; // aisle
+    const sec = a < -0.42 ? 'Left' : a > 0.42 ? 'Right' : 'Centre';
+    const x = O.x + R * Math.sin(a), z = O.z + R * Math.cos(a);
+    n++;
+    seats.push({ sec, r: k, n, a, tier: 'std', name: `${sec} tier · Row ${k + 1}, Seat ${n}`, short: `${sec[0]}${k + 1}-${n}`, x, y, z, rot: a, mx: MX(x), my: MZ(z) });
+  }
+}
+// renumber tier seats per section+row
+const counters = {};
+seats.forEach(s => { if (s.sec === 'Floor') return; const key = s.sec + s.r; counters[key] = (counters[key] || 0) + 1; s.n = counters[key]; s.name = `${s.sec} tier · Row ${s.r + 1}, Seat ${s.n}`; s.short = `${s.sec[0]}${s.r + 1}-${s.n}`; });
+
+const decor = `
+  <rect x="${MX(-9)}" y="${MZ(-9)}" width="${9 * 2 * 2.35}" height="${9 * 2.35}" rx="1.5" fill="#241a1c" stroke="#3a2e30" stroke-width=".3"/>
+  <rect x="${MX(-7)}" y="${MZ(-8.6)}" width="${14 * 2.35}" height="1.2" fill="#f3b33d" opacity=".7"/>
+  <text x="50" y="${MZ(-4)}" text-anchor="middle" font-size="3" letter-spacing="1.5" fill="#9a8f89" font-family="IBM Plex Mono,monospace">STAGE</text>
+  <rect x="${MX(-1.6)}" y="${MZ(12.6)}" width="${3.2 * 2.35}" height="${1.6 * 2.35}" rx=".6" fill="none" stroke="#9a8f89" stroke-width=".3"/>
+  <text x="50" y="${MZ(13.7)}" text-anchor="middle" font-size="1.7" fill="#9a8f89" font-family="IBM Plex Mono,monospace">SOUND</text>
+  <text x="${MX(-13)}" y="${MZ(6)}" text-anchor="middle" font-size="2.2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">LEFT</text>
+  <text x="${MX(13)}" y="${MZ(6)}" text-anchor="middle" font-size="2.2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">RIGHT</text>
+  <text x="50" y="${MZ(4)}" text-anchor="middle" font-size="2.2" fill="#9a8f89" font-family="IBM Plex Mono,monospace">FLOOR</text>`;
+
+SeatView({
+  title: 'Halcyon Static', subtitle: 'Lowlight Tour · Riverside Arena',
+  optionsLabel: 'Date', defaultOption: 0,
+  options: [
+    { label: 'Fri 21 Nov', tag: '20:00', seed: 5, hue: 0 },
+    { label: 'Sat 22 Nov', tag: '20:00', seed: 9, hue: 1 },
+    { label: 'Sun 23 Nov', tag: '19:00', seed: 14, hue: 2 },
+  ],
+  tiers: { std: 'Tier seat', prem: 'Floor seat' },
+  seats,
+  takenProb: s => s.sec === 'Floor' ? 0.55 : 0.25 + 0.3 * (1 - Math.abs(s.a) / 1.2),
+  price: s => s.sec === 'Floor' ? (s.r < 2 ? 165 : 135) : Math.round(59 + 40 * (1 - Math.abs(s.a) / 1.2) - s.r * 3),
+  map: { aspect: 100 / 88, seat: 2.1, decor, miniDecor: `<rect x="${MX(-9)}" y="${MZ(-9)}" width="42" height="21" rx="1.5" fill="#9a8f89" opacity=".6"/>` },
+  chair: { color: 0x26304a, prem: 0x5b1d2a, backH: 0.6, w: 0.48, premScale: 1 },
+  people: [0x15121a, 0x1d1a24, 0x2a1d22, 0x161b22, 0x231a1a],
+  fovPortrait: 100,
+  overview: { pos: [0, 12, 30], look: [0, 3, -4] },
+  pose: s => {
+    const e = new THREE.Vector3(0, 1.28, 0.3).applyAxisAngle(new THREE.Vector3(0, 1, 0), s.rot).add(new THREE.Vector3(s.x, s.y, s.z));
+    return { pos: [e.x, e.y, e.z], look: [s.x * 0.2, 3.6, -3] };
+  },
+  metrics(s) {
+    const ey = s.y + 1.2, dz = s.z, dist = Math.hypot(s.x, dz, ey - DECK);
+    const off = Math.abs(deg(Math.atan2(s.x, s.z + 4)));
+    const above = ey - DECK;
+    let verdict, note;
+    if (s.sec === 'Floor' && s.r < 2) { verdict = 'Front rows'; note = 'Close enough to see faces. You look up at the stage, so the floor in front of you never blocks it.'; }
+    else if (s.sec === 'Floor') { verdict = 'On the floor'; note = 'Level with the crowd. When people stand up in front, you lose the lower part of the stage.'; }
+    else if (off > 42) { verdict = 'Side view'; note = 'You see the stage from the side. The speaker stack and the wings hide part of the back of the stage.'; }
+    else if (off < 18 && s.r <= 2) { verdict = 'Best sound'; note = 'You are on the line of the sound desk, where the engineer mixes the show. Left and right speakers are balanced.'; }
+    else { verdict = 'Raised view'; note = 'Above the floor crowd, so nobody blocks the stage. The video wall is easy to read from here.'; }
+    return { verdict, note, stats: [[dist.toFixed(0) + ' m', 'to the stage'], [(above >= 0 ? '+' : '') + above.toFixed(1) + ' m', 'eye vs stage'], [Math.round(off) + '°', 'off centre']] };
+  },
+  ticket: (s, o) => ({ title: 'Halcyon Static', when: `${o.label} · Doors ${o.tag} · Riverside Arena`, fields: [[s.sec === 'Floor' ? 'Area' : 'Tier', s.sec], ['Row · Seat', `${s.r + 1} · ${s.n}`]] }),
+  codePrefix: 'RA',
+  doneNote: 'Your seat now shows as yours on the map. Scan this code at the arena gate.',
+  build(L, o) {
+    const { T, scene, box, mat, basic } = L;
+    scene.background = new T.Color(0x040306);
+    scene.fog = new T.Fog(0x040306, 30, 80);
+    scene.add(new T.HemisphereLight(0x8890ff, 0x100808, 0.22));
+    const wash = new T.PointLight(0xff7a59, 1.2, 40, 1.5); wash.position.set(0, 8, -2); scene.add(wash);
+    const front = new T.PointLight(0x9fb0ff, 0.6, 50, 1.5); front.position.set(0, 10, 12); scene.add(front);
+
+    // arena floor and bowl
+    box(70, 0.1, 60, mat(0x0d0b0e), 0, -0.05, 10);
+    const risers = [];
+    // risers under tier seats
+    const tierSeats = seats.filter(s => s.sec !== 'Floor');
+    const riser = new T.InstancedMesh(new T.BoxGeometry(1.15, 1, 1.2), mat(0x16131a), tierSeats.length);
+    const D = new T.Object3D();
+    tierSeats.forEach((s, i) => { D.position.set(s.x, s.y / 2, s.z); D.rotation.set(0, s.rot, 0); D.scale.set(1, s.y, 1); D.updateMatrix(); riser.setMatrixAt(i, D.matrix); });
+    scene.add(riser);
+    // back wall ring
+    const wall = new T.Mesh(new T.CylinderGeometry(24, 24, 14, 48, 1, true, -1.6, 3.2), mat(0x0c0a10, { side: T.BackSide }));
+    wall.position.set(O.x, 7, O.z); scene.add(wall);
+    // filler crowd up the back of the bowl (not bookable)
+    const fillN = 900, crowd = new T.InstancedMesh(new T.BoxGeometry(0.42, 0.7, 0.3), mat(0x1a1620), fillN);
+    const r0 = L.rng(3);
+    for (let i = 0; i < fillN; i++) {
+      const k = 5 + Math.floor(r0() * 6), R = 15 + k * 1.15, a = (r0() * 2 - 1) * 1.22;
+      D.position.set(O.x + R * Math.sin(a), 1.2 + k * 0.62 + 0.75, O.z + R * Math.cos(a)); D.rotation.set(0, a, 0); D.scale.set(1, 1, 1); D.updateMatrix(); crowd.setMatrixAt(i, D.matrix);
+    }
+    scene.add(crowd);
+    const steps = new T.InstancedMesh(new T.BoxGeometry(1.3, 1, 1.2), mat(0x16131a), 6 * 30);
+    let si = 0;
+    for (let k = 5; k < 11; k++) { const R = 15 + k * 1.15, y = 1.2 + k * 0.62; for (let j = 0; j < 30; j++) { const a = -1.22 + j * (2.44 / 29); D.position.set(O.x + R * Math.sin(a), y / 2, O.z + R * Math.cos(a)); D.rotation.set(0, a, 0); D.scale.set(R * 2.44 / 29 / 1.3 + 0.1, y, 1); D.updateMatrix(); steps.setMatrixAt(si++, D.matrix); } }
+    scene.add(steps);
+
+    // stage
+    box(19, DECK, 9, mat(0x141016), 0, DECK / 2, -4.5);
+    box(19, 0.05, 0.2, basic(0xf3b33d), 0, DECK + 0.03, -0.1);
+    // LED wall shader
+    const led = new T.ShaderMaterial({
+      uniforms: { t: { value: 0 }, hue: { value: o.hue } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: `uniform float t; uniform float hue; varying vec2 vUv;
+        vec3 pal(float x){ vec3 a=vec3(.5),b=vec3(.5),c=vec3(1.),d=vec3(.0,.33,.67)+hue*.21; return a+b*cos(6.2831*(c*x+d)); }
+        void main(){ vec2 g=floor(vUv*vec2(96.,40.))/vec2(96.,40.);
+          float w=sin(g.x*8.+t*1.3)+sin(g.y*6.-t*.9)+sin((g.x+g.y)*5.+t*.6);
+          vec3 col=pal(w*.18+t*.05)*(.55+.45*sin(w*2.));
+          float dots=step(.18,fract(vUv.x*96.))*step(.18,fract(vUv.y*40.));
+          gl_FragColor=vec4(col*dots,1.); }`,
+    });
+    const wallM = new T.Mesh(new T.PlaneGeometry(16, 7), led); wallM.position.set(0, DECK + 4.2, -8.8); scene.add(wallM);
+    // side screens
+    [-1, 1].forEach(sx => { const m = new T.Mesh(new T.PlaneGeometry(5.5, 3.2), led); m.position.set(sx * 13, 7.5, -3); m.rotation.y = -sx * 0.35; scene.add(m); box(0.8, 5.5, 1.2, mat(0x09080a), sx * 10.6, 7.2, -1.2); });
+    // truss
+    const truss = mat(0x2b2b30, { metalness: .6, roughness: .4 });
+    box(20, 0.35, 0.35, truss, 0, 11.5, -1.5); box(20, 0.35, 0.35, truss, 0, 11.5, -7);
+    [-9.8, 9.8].forEach(x => box(0.35, 11.5, 0.35, truss, x, 5.75, -1.5));
+    // performers
+    const perf = [], pm = mat(0x0a0809);
+    [[-4, -3.5], [0, -2], [4, -4], [1.8, -6.5]].forEach(([x, z], i) => {
+      const g = new T.Group();
+      const body = new T.Mesh(new T.CylinderGeometry(0.22, 0.28, 1.25, 10), pm); body.position.y = 0.95; g.add(body);
+      const head = new T.Mesh(new T.SphereGeometry(0.16, 12, 10), pm); head.position.y = 1.75; g.add(head);
+      g.position.set(x, DECK, z); scene.add(g); perf.push(g);
+    });
+    box(2.4, 0.9, 1.6, mat(0x111014), 1.8, DECK + 0.45, -6.5); // drum riser
+    // light beams (additive cones)
+    const beams = [];
+    const beamMat = c => new T.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide });
+    const cols = [[0xff4fa0, 0x5c7cff, 0xffc04f], [0x4fffd2, 0xff6a3d, 0xa54fff], [0xffffff, 0xff3d6e, 0x3dc8ff]][o.hue];
+    for (let i = 0; i < 8; i++) {
+      const geo = new T.ConeGeometry(1.6, 12, 20, 1, true); geo.translate(0, -6, 0);
+      const m = new T.Mesh(geo, beamMat(cols[i % 3]));
+      m.position.set(-8.4 + i * 2.4, 11.4, i % 2 ? -1.5 : -7); scene.add(m); beams.push(m);
+    }
+    // sound desk
+    box(3.2, 1.1, 1.6, mat(0x18161b), 0, 0.55, 13.4);
+    box(2.8, 0.05, 1.2, basic(0x2a3a60), 0, 1.13, 13.4);
+    return {
+      tick(t) {
+        led.uniforms.t.value = t;
+        beams.forEach((b, i) => { b.rotation.z = Math.sin(t * 0.7 + i) * 0.5; b.rotation.x = 0.35 + Math.cos(t * 0.5 + i * 1.3) * 0.25; });
+        perf.forEach((p, i) => { p.position.y = DECK + Math.max(0, Math.sin(t * 4 + i * 1.7)) * 0.08; p.rotation.y = Math.sin(t * 0.8 + i) * 0.4; });
+        wash.intensity = 1 + Math.sin(t * 2.2) * 0.4;
+      },
+      setOption(no) {
+        led.uniforms.hue.value = no.hue;
+        const c = [[0xff4fa0, 0x5c7cff, 0xffc04f], [0x4fffd2, 0xff6a3d, 0xa54fff], [0xffffff, 0xff3d6e, 0x3dc8ff]][no.hue];
+        beams.forEach((b, i) => b.material.color.setHex(c[i % 3]));
+      },
+    };
+  },
+});
+})();
+</script>
+</body>
+</html>

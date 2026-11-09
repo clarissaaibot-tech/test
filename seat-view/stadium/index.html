@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Seat View · Stadium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../shared/engine.js"></script>
+<script>
+(() => {
+// Pitch 105 x 68 m centred at origin, long axis along x. Four stands, 16 rows each, 0.85 m deep, 0.5 m rise.
+const PL = 105, PW = 68, ROWS = 16, DEPTH = 0.85, RISE = 0.5, GAP = 7, SEAT = 0.55;
+const STANDS = [
+  { id: 'W', name: 'West Stand', len: 96, side: 'long', dir: [0, 1] },   // z = +, faces -z
+  { id: 'E', name: 'East Stand', len: 96, side: 'long', dir: [0, -1] },
+  { id: 'N', name: 'North End', len: 62, side: 'end', dir: [-1, 0] },   // x = -, faces +x
+  { id: 'S', name: 'South End', len: 62, side: 'end', dir: [1, 0] },
+];
+// place a stand-local point (u along the stand, k row) into world space
+function standPoint(st, u, k) {
+  const off = (st.side === 'long' ? PW / 2 : PL / 2) + GAP + k * DEPTH, y = 0.6 + k * RISE;
+  const [dx, dz] = st.dir;
+  if (dz) return { x: dz > 0 ? -u : u, y, z: dz * off, rot: dz > 0 ? 0 : Math.PI };
+  return { x: dx * off, y, z: dx > 0 ? u : -u, rot: dx > 0 ? Math.PI / 2 : -Math.PI / 2 };
+}
+// bookable seats: 5 rows (of the 16) x N blocks along the stand; the rest of the stand is decorative crowd
+const BOOK_ROWS = [0, 3, 7, 11, 15];
+const seats = [], bookedKeys = new Set();
+// schematic map: pitch in the middle, stands as bands around it
+const MAPW = 100, MAPH = 100, pitchMap = { x: 22, y: 30, w: 56, h: 40 };
+STANDS.forEach(st => {
+  const cols = st.side === 'long' ? 14 : 10;
+  const nRow = Math.round(st.len / SEAT);
+  BOOK_ROWS.forEach((k, ki) => {
+    for (let j = 0; j < cols; j++) {
+      const seatIdx = Math.round((j + 0.5) / cols * nRow);
+      const u = -st.len / 2 + seatIdx * SEAT;
+      const p = standPoint(st, u, k);
+      bookedKeys.add(st.id + ':' + k + ':' + seatIdx);
+      const block = Math.floor(j / (cols / 2)) + 1;
+      const rowNo = k + 1, seatNo = seatIdx + 1;
+      let mx, my;
+      const t = (j + 0.5) / cols, d = st.side === 'long' ? 3.2 + ki * 4.4 : 2.6 + ki * 3.6;
+      if (st.id === 'W') { mx = pitchMap.x + pitchMap.w * (1 - t); my = pitchMap.y + pitchMap.h + d; }      // West = bottom of map
+      if (st.id === 'E') { mx = pitchMap.x + pitchMap.w * t; my = pitchMap.y - d; }                    // East = top
+      if (st.id === 'N') { mx = pitchMap.x - d; my = pitchMap.y + pitchMap.h * (1 - t); }                // North = left
+      if (st.id === 'S') { mx = pitchMap.x + pitchMap.w + d; my = pitchMap.y + pitchMap.h * t; }
+      const club = st.id === 'W' && j >= 4 && j <= 9 && ki <= 2;
+      seats.push({ st, k, ki, j, u, tier: club ? 'prem' : 'std', name: `${st.name} · Row ${rowNo}, Seat ${seatNo}`, short: `${st.id}${rowNo}-${seatNo}`, rowNo, seatNo, ...p, mx, my });
+    }
+  });
+});
+// map: rotate seats in end stands so they read as facing the pitch
+seats.forEach(s => { if (s.st.side === 'end') s.mr = 90; });
+const P = pitchMap;
+const decor = `
+  <rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="1" fill="#1f3a22" stroke="#d9e6d3" stroke-opacity=".5" stroke-width=".3"/>
+  <line x1="${P.x + P.w / 2}" y1="${P.y}" x2="${P.x + P.w / 2}" y2="${P.y + P.h}" stroke="#d9e6d3" stroke-opacity=".5" stroke-width=".3"/>
+  <circle cx="${P.x + P.w / 2}" cy="${P.y + P.h / 2}" r="6" fill="none" stroke="#d9e6d3" stroke-opacity=".5" stroke-width=".3"/>
+  <rect x="${P.x}" y="${P.y + P.h * 0.2}" width="9" height="${P.h * 0.6}" fill="none" stroke="#d9e6d3" stroke-opacity=".5" stroke-width=".3"/>
+  <rect x="${P.x + P.w - 9}" y="${P.y + P.h * 0.2}" width="9" height="${P.h * 0.6}" fill="none" stroke="#d9e6d3" stroke-opacity=".5" stroke-width=".3"/>
+  <text x="50" y="${P.y - 24}" text-anchor="middle" font-size="2.6" letter-spacing=".8" fill="#9a8f89" font-family="IBM Plex Mono,monospace">EAST STAND</text>
+  <text x="50" y="${P.y + P.h + 26.5}" text-anchor="middle" font-size="2.6" letter-spacing=".8" fill="#9a8f89" font-family="IBM Plex Mono,monospace">WEST STAND · MAIN</text>
+  <text x="${P.x - 20}" y="${P.y + P.h / 2}" text-anchor="middle" font-size="2.6" letter-spacing=".8" fill="#9a8f89" font-family="IBM Plex Mono,monospace" transform="rotate(-90 ${P.x - 20} ${P.y + P.h / 2})">NORTH END</text>
+  <text x="${P.x + P.w + 20}" y="${P.y + P.h / 2}" text-anchor="middle" font-size="2.6" letter-spacing=".8" fill="#9a8f89" font-family="IBM Plex Mono,monospace" transform="rotate(90 ${P.x + P.w + 20} ${P.y + P.h / 2})">SOUTH END</text>`;
+
+SeatView({
+  title: 'Harbour City v Northvale', subtitle: 'Ferrylands Stadium · League',
+  optionsLabel: 'Kick-off', defaultOption: 1,
+  options: [
+    { label: 'Sat 15:00', tag: 'DAY', seed: 3, night: false },
+    { label: 'Wed 19:45', tag: 'NIGHT', seed: 8, night: true },
+  ],
+  tiers: { std: 'Standard', prem: 'Club seat' },
+  seats,
+  takenProb: s => 0.35 + (s.st.side === 'long' ? 0.2 : 0.1) * (1 - s.ki / 5),
+  price: s => s.tier === 'prem' ? 95 : s.st.side === 'long' ? 48 - s.ki * 2 + (Math.abs(s.u) < 20 ? 10 : 0) : 34,
+  map: { aspect: MAPW / MAPH, seat: 2.4, decor, miniDecor: `<rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="1" fill="#1f3a22"/>` },
+  chair: { color: 0x1d3f8f, prem: 0x8a6a2a, backH: 0.42, w: 0.46, arms: false, seatH: 0.4, premScale: 1.05, backTilt: -0.1 },
+  people: [0x1d3f8f, 0x23262e, 0x1d3f8f, 0xe7e4df, 0x1a1a1c, 0x2b56b8],
+  fovPortrait: 96, fovWide: 78,
+  look: { yaw: 1.3, pitch: 0.4 },
+  overview: { pos: [0, 70, 90], look: [0, 0, 0] },
+  approach: s => ({ pos: [s.x * 1.6, 60, s.z * 1.6 + 1], look: [0, 0, 0] }),
+  pose: s => {
+    const back = s.st.dir;
+    return { pos: [s.x + back[0] * 0.3, s.y + 1.25, s.z + back[1] * 0.3], look: [s.x * 0.35 * (s.st.side === 'long' ? 1 : 0.4), 0, s.z * (s.st.side === 'long' ? 0.25 : 0.35)] };
+  },
+  metrics(s) {
+    const ey = s.y + 1.2, dist = Math.hypot(s.x, s.z, ey);
+    const goal = Math.min(Math.hypot(s.x - PL / 2, s.z, ey), Math.hypot(s.x + PL / 2, s.z, ey));
+    let verdict, note;
+    if (s.st.side === 'end') { verdict = 'Behind the goal'; note = 'Attacks come straight at you, and this is where the loudest fans stand. The far goal is a long way off.'; }
+    else if (Math.abs(s.x) < 16) { verdict = 'Halfway line'; note = 'The TV angle. Both goals are the same distance away and you can read the offside line in either half.'; }
+    else if (Math.abs(s.x) > 38) { verdict = 'Corner view'; note = 'Close to one goal and the corner flag. Play at the far end is hard to judge.'; }
+    else { verdict = 'Side view'; note = 'Along the touchline between halfway and the penalty box. A good balance of distance and angle.'; }
+    if (s.k >= 11) note += ' High up, you see the shape of both teams.';
+    else if (s.k === 0) note += ' Row 1 is close to the action but low, so the far touchline looks flat.';
+    if (s.tier === 'prem') note += ' Club seats are padded and include lounge access.';
+    return { verdict, note, stats: [[dist.toFixed(0) + ' m', 'to centre spot'], [ey.toFixed(1) + ' m', 'above pitch'], [goal.toFixed(0) + ' m', 'to nearest goal']] };
+  },
+  ticket: (s, o) => ({ title: 'Harbour City v Northvale', when: `${o.label} · Ferrylands Stadium`, fields: [['Stand', s.st.id], ['Row · Seat', `${s.rowNo} · ${s.seatNo}`]] }),
+  codePrefix: 'FS',
+  doneNote: 'Your seat now shows as yours on the map. Scan this code at turnstile ' + 'B.',
+  build(L, o) {
+    const { T, scene, box, mat, basic } = L;
+    const hemi = new T.HemisphereLight(0xdfe9ff, 0x1d2a1a, 0.7); scene.add(hemi);
+    const sun = new T.DirectionalLight(0xfff1d6, 1.0); sun.position.set(-60, 90, 40); scene.add(sun);
+    const flood = new T.DirectionalLight(0xe8f0ff, 0); flood.position.set(0, 80, 0); scene.add(flood);
+
+    // pitch texture with markings
+    const grass = L.canvasTex(1050, 680, (g, w, h) => {
+      for (let i = 0; i < 14; i++) { g.fillStyle = i % 2 ? '#3f8a3a' : '#4a9a43'; g.fillRect(i * w / 14, 0, w / 14 + 1, h); }
+      g.strokeStyle = '#f2f5ee'; g.lineWidth = 2.4; const s = w / 105;
+      const R = (x, y, ww, hh) => g.strokeRect(x * s, y * s, ww * s, hh * s);
+      R(1, 1, 103, 66); g.beginPath(); g.moveTo(52.5 * s, 1 * s); g.lineTo(52.5 * s, 67 * s); g.stroke();
+      g.beginPath(); g.arc(52.5 * s, 34 * s, 9.15 * s, 0, 7); g.stroke();
+      R(1, 13.85, 16.5, 40.3); R(87.5, 13.85, 16.5, 40.3); R(1, 24.85, 5.5, 18.3); R(98.5, 24.85, 5.5, 18.3);
+      g.beginPath(); g.arc(12 * s, 34 * s, 9.15 * s, -0.93, 0.93); g.stroke(); g.beginPath(); g.arc(93 * s, 34 * s, 9.15 * s, Math.PI - 0.93, Math.PI + 0.93); g.stroke();
+      g.fillStyle = '#f2f5ee'; [[52.5, 34], [12, 34], [93, 34]].forEach(([x, y]) => { g.beginPath(); g.arc(x * s, y * s, 3, 0, 7); g.fill(); });
+    });
+    const pitch = new T.Mesh(new T.PlaneGeometry(107, 70), new T.MeshStandardMaterial({ map: grass, roughness: 1 }));
+    pitch.rotation.x = -Math.PI / 2; scene.add(pitch);
+    const apron = new T.Mesh(new T.PlaneGeometry(130, 92), mat(0x2f6b2c)); apron.rotation.x = -Math.PI / 2; apron.position.y = -0.02; scene.add(apron);
+    // goals
+    const white = mat(0xffffff, { roughness: .4 });
+    [-1, 1].forEach(sd => {
+      const x = sd * 51.5;
+      box(0.12, 2.44, 0.12, white, x, 1.22, -3.66); box(0.12, 2.44, 0.12, white, x, 1.22, 3.66); box(0.12, 0.12, 7.44, white, x, 2.44, 0);
+      const net = new T.Mesh(new T.BoxGeometry(2, 2.44, 7.3), new T.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.25 })); net.position.set(x + sd * 1, 1.22, 0); scene.add(net);
+    });
+    // stands: steps, decorative seats and crowd
+    const D = new T.Object3D();
+    const concrete = mat(0x3a3d44);
+    STANDS.forEach(st => {
+      for (let k = 0; k < ROWS; k++) {
+        const a = standPoint(st, 0, k);
+        const m = box(st.side === 'long' ? st.len : 0.1, a.y, DEPTH, concrete, 0, 0, 0);
+        m.scale.set(1, 1, 1);
+        if (st.side === 'long') m.position.set(0, a.y / 2, a.z); else { m.geometry = new T.BoxGeometry(DEPTH, a.y, st.len); m.position.set(a.x, a.y / 2, 0); }
+      }
+      // roof canopy
+      const top = standPoint(st, 0, ROWS + 1);
+      const roof = st.side === 'long' ? box(st.len + 4, 0.4, ROWS * DEPTH + 8, mat(0x202227), 0, top.y + 9, top.z - st.dir[1] * (ROWS * DEPTH / 2 - 1)) : box(ROWS * DEPTH + 8, 0.4, st.len + 4, mat(0x202227), top.x - st.dir[0] * (ROWS * DEPTH / 2 - 1), top.y + 9, 0);
+      roof.rotation[st.side === 'long' ? 'x' : 'z'] = 0.06 * (st.side === 'long' ? -st.dir[1] : st.dir[0]);
+      const backWall = st.side === 'long' ? box(st.len, top.y + 9, 0.4, mat(0x1b1d22), 0, (top.y + 9) / 2, top.z) : box(0.4, top.y + 9, st.len, mat(0x1b1d22), top.x, (top.y + 9) / 2, 0);
+    });
+    const decoChairs = [], decoPeople = [];
+    const r = L.rng(21);
+    STANDS.forEach(st => {
+      const n = Math.round(st.len / SEAT);
+      for (let k = 0; k < ROWS; k++) for (let i = 0; i <= n; i++) {
+        if (bookedKeys.has(st.id + ':' + k + ':' + i)) continue;
+        const p = standPoint(st, -st.len / 2 + i * SEAT, k);
+        decoChairs.push(p);
+        if (r() < 0.82) decoPeople.push(p);
+      }
+    });
+    const chairM = new T.InstancedMesh(new T.BoxGeometry(0.46, 0.42, 0.45), mat(0x1d3f8f), decoChairs.length);
+    decoChairs.forEach((p, i) => { D.position.set(p.x, p.y + 0.3, p.z); D.rotation.set(0, p.rot, 0); D.scale.set(1, 1, 1); D.updateMatrix(); chairM.setMatrixAt(i, D.matrix); });
+    scene.add(chairM);
+    const fanM = new T.InstancedMesh(new T.BoxGeometry(0.4, 0.75, 0.26), new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), decoPeople.length);
+    const fanCols = [0x1d3f8f, 0x24262c, 0x2b56b8, 0xe9e6e0, 0x1d3f8f, 0x3a3a3f, 0xb8312f].map(c => new T.Color(c));
+    decoPeople.forEach((p, i) => { D.position.set(p.x, p.y + 0.85, p.z); D.rotation.set(0, p.rot, 0); D.updateMatrix(); fanM.setMatrixAt(i, D.matrix); fanM.setColorAt(i, fanCols[(i * 7) % fanCols.length]); });
+    scene.add(fanM);
+    // floodlight pylons and scoreboard
+    const lamps = [];
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([sx, sz]) => {
+      box(1.2, 48, 1.2, mat(0x4a4d55), sx * 66, 24, sz * 52);
+      const head = box(8, 4, 0.6, basic(0xfafcff), sx * 64, 48, sz * 50); head.lookAt(0, 0, 0); lamps.push(head);
+    });
+    const board = L.canvasTex(512, 160, (g) => { g.fillStyle = '#08090b'; g.fillRect(0, 0, 512, 160); g.fillStyle = '#ffd34d'; g.font = 'bold 56px IBM Plex Mono, monospace'; g.textAlign = 'center'; g.fillText('HCY 1 – 0 NVL', 256, 78); g.font = '28px IBM Plex Mono, monospace'; g.fillStyle = '#e8e8e8'; g.fillText("34'", 256, 128); });
+    const sb = new T.Mesh(new T.PlaneGeometry(16, 5), new T.MeshBasicMaterial({ map: board })); sb.position.set(-PL / 2 - GAP - ROWS * DEPTH - 1, 20, 0); sb.rotation.y = Math.PI / 2; scene.add(sb);
+    // players + ball
+    const players = [];
+    const kit = [mat(0x1d3f8f), mat(0xb8312f)], skinM = mat(0x8a5f45);
+    for (let i = 0; i < 22; i++) {
+      const g = new T.Group(), team = i < 11 ? 0 : 1;
+      const b = new T.Mesh(new T.CylinderGeometry(0.28, 0.24, 1.3, 8), kit[team]); b.position.y = 0.95; g.add(b);
+      const h = new T.Mesh(new T.SphereGeometry(0.15, 8, 6), skinM); h.position.y = 1.75; g.add(h);
+      const lg = new T.Mesh(new T.BoxGeometry(0.34, 0.5, 0.2), mat(0xf2f2f2)); lg.position.y = 0.25; g.add(lg);
+      const gk = i % 11 === 0, home = { x: (team ? 1 : -1) * (gk ? 68 : 5 + (i % 11) * 4.2), z: gk ? 0 : ((i * 37) % 11 - 5) * 5.5 }, keeper = gk;
+      g.position.set(home.x, 0, home.z); scene.add(g); players.push({ g, home, ph: i * 1.7, keeper });
+    }
+    const ball = new T.Mesh(new T.SphereGeometry(0.22, 12, 10), white); scene.add(ball);
+    function setOption(no) {
+      if (no.night) {
+        scene.background = new T.Color(0x070b16); scene.fog = new T.Fog(0x070b16, 160, 320);
+        hemi.intensity = 0.35; sun.intensity = 0; flood.intensity = 1.25; lamps.forEach(l => l.material.color.setHex(0xffffff));
+      } else {
+        scene.background = new T.Color(0x9cc3e6); scene.fog = new T.Fog(0x9cc3e6, 160, 340);
+        hemi.intensity = 0.75; sun.intensity = 1.0; flood.intensity = 0; lamps.forEach(l => l.material.color.setHex(0x9aa0aa));
+      }
+    }
+    setOption(o);
+    return {
+      setOption,
+      tick(t) {
+        const bx = Math.sin(t * 0.23) * 30, bz = Math.sin(t * 0.37) * 18;
+        ball.position.set(bx, 0.22, bz);
+        players.forEach(p => {
+          const pull = p.keeper ? 0.05 : 0.35;
+          const x = p.home.x * 0.7 + bx * pull + Math.sin(t * 0.6 + p.ph) * 2;
+          const z = p.home.z * 0.8 + bz * pull + Math.cos(t * 0.5 + p.ph) * 2;
+          p.g.position.set(x, 0, z); p.g.rotation.y = Math.atan2(bx - x, bz - z);
+        });
+      },
+    };
+  },
+});
+})();
+</script>
+</body>
+</html>
