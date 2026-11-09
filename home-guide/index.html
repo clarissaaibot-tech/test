@@ -250,6 +250,16 @@ const APPLIANCES = [
     issues:[['Light flickers','This is usually the bulb or its LED driver. Try a new bulb first.'],['Light stays faintly on when switched off','This is common with cheap LED bulbs on some switches. A better LED bulb usually fixes it.']],
     pro:'The switch sparks, feels warm, or the breaker trips when you flip it.', query:'ceiling light not working switch' },
 ];
+/* The layout above was measured as a floor plan seen from above (x = east).
+   Three.js shows +x on the left when you walk in facing +z, so mirror x once here. */
+(function mirrorX(){
+  const W = HOME.size[0];
+  HOME.rooms.forEach(r=>{ const [x1,z1,x2,z2]=r.rect; r.rect=[W-x2,z1,W-x1,z2]; });
+  HOME.walls = HOME.walls.map(([x1,z1,x2,z2,h,nx,nz])=>[W-x1,z1,W-x2,z2,h,-nx,nz]);
+  HOME.decor.forEach(d=>d[0]=W-d[0]);
+  HOME.furniture.forEach(f=>f[0]=W-f[0]);
+  APPLIANCES.forEach(a=>a.pos[0]=W-a.pos[0]);
+})();
 /* ---------- STATE ---------- */
 const store = {
   get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
@@ -384,7 +394,7 @@ function fadeWalls(){
 
 /* ---------- CAMERA ---------- */
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const HOME_VIEW = { pos:new THREE.Vector3(3.9, 7.4, -5.9), target:new THREE.Vector3(0,1.35,0.1) };
+const HOME_VIEW = { pos:new THREE.Vector3(-3.9, 7.4, -5.9), target:new THREE.Vector3(0,1.35,0.1) };
 let tween = null;
 function flyTo(pos, target){
   if (reduceMotion){ camera.position.copy(pos); controls.target.copy(target); return; }
@@ -399,7 +409,7 @@ function viewRoom(id){
   const [x1,z1,x2,z2] = roomById[id].rect;
   const s = Math.max(x2-x1, z2-z1) + 1.2;
   const c = roomCenter(id);
-  flyTo(c.clone().add(new THREE.Vector3(s*0.55, s*1.25, -s*0.95)), c);
+  flyTo(c.clone().add(new THREE.Vector3(-s*0.55, s*1.25, -s*0.95)), c);
 }
 function viewAppliance(a){
   const c = new THREE.Vector3(0, a.world.y, 0); // room centre at the appliance's height
