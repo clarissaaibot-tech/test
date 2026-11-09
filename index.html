@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>One Minute Anywhere</title>
   <meta name="description" content="Tap any point on Earth and stand there for a minute: real local time, real sun, live weather, modelled street life." />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="src/style.css" />
 </head>
 <body>
@@ -20,7 +19,9 @@
     <div id="hint">
       <h1>One Minute Anywhere</h1>
       <p>Tap anywhere on Earth to stand there, right now.</p>
+      <p class="small" id="engineNote"></p>
     </div>
+    <div class="status" id="status"></div>
     <div id="here" hidden>
       <div class="place" id="place">—</div>
       <div class="clock" id="clock">--:--:--</div>
@@ -38,10 +39,19 @@
     <label for="shift">Time <span id="shiftLabel">live</span></label>
     <input id="shift" type="range" min="-12" max="12" step="0.25" value="0" />
     <div class="row">
+      <button id="viewToggle" type="button" hidden>Aerial view</button>
       <button id="live" type="button">Live</button>
       <button id="globe" type="button">Back to globe</button>
     </div>
   </section>
+
+  <div id="walkpad" hidden aria-label="Walk controls">
+    <button type="button" data-k="w" aria-label="Walk forward">▲</button>
+    <button type="button" data-k="arrowleft" aria-label="Turn left">◀</button>
+    <button type="button" data-k="s" aria-label="Walk back">▼</button>
+    <button type="button" data-k="arrowright" aria-label="Turn right">▶</button>
+    <p>Drag to look · W A S D / arrows to walk · Shift to run</p>
+  </div>
 
   <div id="fps" title="frames per second">-- fps</div>
   <div id="credits">
@@ -51,8 +61,8 @@
     Places <a href="https://www.bigdatacloud.com" target="_blank" rel="noopener">BigDataCloud</a>
   </div>
 
-  <script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
-  <script src="src/app.js"></script>
+  <script src="src/shared.js"></script>
+  <script src="src/boot.js"></script>
 </body>
 </html>
