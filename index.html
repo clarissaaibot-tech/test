@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>One Minute Anywhere</title>
+  <meta name="description" content="Tap any point on Earth and stand there for a minute: real local time, real sun, live weather, modelled street life." />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div id="map"></div>
+  <!-- atmosphere stack: tint (time of day) -> fog -> precipitation -->
+  <div id="tint" class="fx"></div>
+  <div id="fog" class="fx"></div>
+  <canvas id="precip" class="fx"></canvas>
+  <div id="flash" class="fx"></div>
+
+  <section id="panel" class="card" aria-live="polite">
+    <div id="hint">
+      <h1>One Minute Anywhere</h1>
+      <p>Tap anywhere on Earth to stand there, right now.</p>
+    </div>
+    <div id="here" hidden>
+      <div class="place" id="place">—</div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="sub" id="date">—</div>
+      <dl class="facts">
+        <div><dt>Sun</dt><dd id="sun">—</dd></div>
+        <div><dt>Weather</dt><dd id="wx">loading…</dd></div>
+        <div><dt>Street</dt><dd id="crowd">—</dd></div>
+      </dl>
+    </div>
+    <div class="chips" id="presets"></div>
+  </section>
+
+  <section id="controls" class="card" hidden>
+    <label for="shift">Time <span id="shiftLabel">live</span></label>
+    <input id="shift" type="range" min="-12" max="12" step="0.25" value="0" />
+    <div class="row">
+      <button id="live" type="button">Live</button>
+      <button id="globe" type="button">Back to globe</button>
+    </div>
+  </section>
+
+  <div id="fps" title="frames per second">-- fps</div>
+  <div id="credits">
+    Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> ·
+    <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ·
+    Weather <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> ·
+    Places <a href="https://www.bigdatacloud.com" target="_blank" rel="noopener">BigDataCloud</a>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+:root {
+  --card-bg: rgba(255, 255, 255, 0.86);
+  --card-fg: #15171c;
+  --muted: #5d6370;
+  --accent: #2f6fed;
+  --border: rgba(0, 0, 0, 0.08);
+  --chip-bg: rgba(0, 0, 0, 0.05);
+  --page-bg: #0b1020;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --card-bg: rgba(18, 21, 30, 0.82);
+    --card-fg: #eef0f5;
+    --muted: #9aa1b2;
+    --accent: #7aa6ff;
+    --border: rgba(255, 255, 255, 0.1);
+    --chip-bg: rgba(255, 255, 255, 0.08);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--page-bg); }
+body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--card-fg); }
+#map { position: absolute; inset: 0; }
+
+.fx { position: absolute; inset: 0; pointer-events: none; }
+#tint { mix-blend-mode: multiply; background: #fff; transition: background-color 1.2s linear; }
+#fog { opacity: 0; transition: opacity 2s ease; }
+#flash { background: #fff; opacity: 0; }
+
+.card {
+  position: absolute;
+  background: var(--card-bg);
+  color: var(--card-fg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+#panel { top: 16px; left: 16px; width: min(330px, calc(100vw - 32px)); padding: 14px 16px; }
+#panel h1 { font-size: 18px; margin: 0 0 4px; }
+#panel p { margin: 0 0 10px; color: var(--muted); }
+.place { font-weight: 600; font-size: 15px; }
+.clock { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; line-height: 1.1; }
+.sub { color: var(--muted); margin-bottom: 8px; }
+.facts { margin: 0 0 10px; display: grid; gap: 4px; }
+.facts div { display: grid; grid-template-columns: 64px 1fr; gap: 8px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button, .row button {
+  font: inherit; border: 1px solid var(--border); background: var(--chip-bg); color: var(--card-fg);
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+}
+.chips button:hover, .row button:hover { border-color: var(--accent); }
+
+#controls { left: 50%; transform: translateX(-50%); bottom: 28px; width: min(420px, calc(100vw - 32px)); padding: 10px 14px; }
+#controls label { display: flex; justify-content: space-between; color: var(--muted); }
+#controls input { width: 100%; accent-color: var(--accent); }
+.row { display: flex; gap: 8px; justify-content: flex-end; }
+
+#fps { position: absolute; right: 12px; top: 12px; font: 11px ui-monospace, monospace; color: #fff; background: rgba(0,0,0,.45); padding: 2px 6px; border-radius: 6px; pointer-events: none; }
+#credits { position: absolute; right: 8px; bottom: 4px; font-size: 10px; color: #fff; text-shadow: 0 1px 2px #000; }
+#credits a { color: inherit; }
+.maplibregl-ctrl-attrib { display: none; }
+
+.you {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--accent);
+  border: 2px solid #fff; box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6); animation: pulse 2s infinite;
+}
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(47,111,237,.6); } 100% { box-shadow: 0 0 0 18px rgba(47,111,237,0); } }
+
+@media (max-width: 520px) {
+  #panel { top: 10px; left: 10px; padding: 10px 12px; }
+  .clock { font-size: 30px; }
+  #controls { bottom: 22px; }
+  #fps { top: auto; bottom: 120px; }
+}
