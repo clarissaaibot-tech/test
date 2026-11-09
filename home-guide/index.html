@@ -101,7 +101,7 @@ details p{margin:6px 0 0;color:var(--muted)}
       <div class="brand"><h1>Home Fix Map</h1><span id="count"></span></div>
       <div class="chips" id="chips" role="group" aria-label="Rooms"></div>
     </div>
-    <div class="hint">Drag to orbit · scroll or pinch to zoom · tap a dot</div>
+    <div class="hint">Drag to look around · walls in the way fade out · tap a dot</div>
   </div>
   <aside class="panel" id="panel" aria-live="polite"></aside>
 </div>
@@ -113,162 +113,143 @@ details p{margin:6px 0 0;color:var(--muted)}
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/* ---------- HOME DATA (swap this for a real apartment) ---------- */
+/* ---------- HOME DATA (mapped from room photos) ---------- */
+// Coordinates in metres. x runs west→east, z runs from the door wall (z=0) to the AC wall.
 const HOME = {
-  name: 'Sample apartment',
-  size: [10, 8],               // metres, x by z
-  wallHeight: 1.25,
-  rooms: [
-    { id:'living',   name:'Living room',    rect:[0,0,6,4.5],   floor:'wood' },
-    { id:'kitchen',  name:'Kitchen',        rect:[6,0,10,4.5],  floor:'tile' },
-    { id:'bedroom',  name:'Bedroom',        rect:[0,4.5,4.5,8], floor:'wood2' },
-    { id:'bathroom', name:'Bathroom',       rect:[4.5,4.5,7,8], floor:'tile2' },
-    { id:'hall',     name:'Laundry & hall', rect:[7,4.5,10,8], floor:'tile' },
+  name: 'Bedroom & study',
+  size: [3.4, 4.2],
+  rooms: [ // zones inside the room, used for floor, filters and camera framing
+    { id:'entry',  name:'Entry',             rect:[0,0,1.6,1.4] },
+    { id:'vanity', name:'Wardrobe & vanity', rect:[0,1.4,1.4,4.2] },
+    { id:'desk',   name:'Desk & window',     rect:[1.4,1.4,3.4,4.2] },
   ],
+  // [x1,z1,x2,z2, height, outward normal x, z]. Walls facing the camera fade out automatically.
   walls: [
-    [0,0,10,0],[10,0,10,8],[0,8,8,8],[9,8,10,8],[0,0,0,8],
-    [0,4.5,3,4.5],[3.9,4.5,5.3,4.5],[6.1,4.5,7.8,4.5],[9.2,4.5,10,4.5],
-    [4.5,4.5,4.5,8],[7,4.5,7,8],[6,0,6,0.9],
+    [0,0,1.6,0,     2.6, 0,-1],  // 0 door wall
+    [1.6,0,1.6,1.4, 2.6, 1,0],   // 1 entry side wall
+    [1.6,1.4,3.4,1.4,2.6, 0,-1], // 2 calligraphy wall
+    [3.4,1.4,3.4,4.2,2.6, 1,0],  // 3 window wall
+    [0,4.2,3.4,4.2, 2.6, 0,1],   // 4 AC + painting wall
+    [0,0,0,4.2,     2.6, -1,0],  // 5 wardrobe wall
+  ],
+  // things fixed to a wall fade with it: [x,y,z, w,h,d, colour, wallIndex]
+  decor: [
+    [0.8,0,0.07, 0.9,2.05,0.04, '#c4c3ba', 0],          // grey entry door
+    [1.54,1.45,0.6, 0.02,0.09,0.07, '#f5f5f2', 1],      // small white wall unit
+    [2.55,1.3,1.46, 1.1,0.62,0.02, '#d8b444', 2],       // calligraphy scroll (gold mount)
+    [2.55,1.38,1.475, 0.78,0.46,0.01, '#f4f0e6', 2],    // calligraphy paper
+    [3.34,0.45,2.8, 0.02,2.0,2.3, '#bcd3e6', 3],        // window
+    [3.26,0,1.75, 0.1,2.55,0.65, '#6f6153', 3],         // curtain
+    [3.26,0,3.85, 0.1,2.55,0.65, '#6f6153', 3],         // curtain
+    [2.35,1.3,4.14, 1.2,0.58,0.03, '#6b1f2c', 4],       // landscape painting frame
+    [2.35,1.35,4.12, 1.02,0.44,0.01, '#6f9a78', 4],     // landscape painting
   ],
   furniture: [ // [x,y,z, w,h,d, role]
-    [3,0,0.35, 1.8,0.45,0.45,'wood'],            // TV stand
-    [3,0,3.75, 2.2,0.72,0.85,'fabric'],          // sofa
-    [3,0,2.35, 1.1,0.38,0.6,'wood'],             // coffee table
-    [3,0,2.6, 3.0,0.01,2.2,'rug'],               // rug
-    [4.65,0,3.75, 0.42,0.55,0.42,'wood'],        // side table
-    [0.3,0,2.4, 0.4,0.8,1.0,'wood'],             // shelf
-    [8.05,0,0.36, 3.9,0.9,0.6,'counter'],        // counter along back wall
-    [9.64,0,1.8, 0.6,0.9,2.3,'counter'],         // counter along side wall
-    [7.6,0,2.7, 1.4,0.74,0.8,'wood'],            // dining table
-    [1.6,0,6.85, 1.8,0.5,2.1,'fabric'],          // bed
-    [0.42,0,6.4, 0.45,0.5,0.4,'wood'],           // nightstand
-    [0.4,0,5.0, 0.6,1.2,0.8,'wood'],             // wardrobe
-    [5.6,0,7.5, 1.6,0.55,0.75,'ceramic'],        // bathtub
-    [4.95,0,5.4, 0.4,0.42,0.6,'ceramic'],        // toilet
-    [6.6,0,5.0, 0.6,0.85,0.45,'ceramic'],        // sink
-    [8.5,0,7.97, 0.95,1.25,0.06,'door'],         // front door
+    [0.07,0,0.66, 0.06,1.8,0.62,'rattan'],     // arched rattan mirror, leaning
+    [0.2,0,1.2, 0.34,1.05,0.36,'steel'],       // grey cabinet with makeup
+    [0.34,0,2.2, 0.64,2.45,1.6,'wardrobe'],    // sliding-door wardrobe
+    [0.27,0.74,3.6, 0.5,0.04,1.15,'wardrobe'], // vanity counter in the nook
+    [0.17,1.5,3.6, 0.3,0.03,1.15,'wardrobe'],  // shelf
+    [0.17,1.85,3.6, 0.3,0.03,1.15,'wardrobe'], // shelf
+    [1.0,0,3.35, 0.32,0.42,0.32,'stool'],      // round stool
+    [2.6,0,2.55, 1.5,0.75,0.5,'desk'],         // dark wood desk
+    [2.25,0,3.15, 0.5,0.82,0.5,'chair'],       // black chair
+    [3.05,0,3.95, 0.42,0.8,0.32,'steel'],      // book trolley
+    [3.15,0.75,2.6, 0.12,0.32,0.12,'plant'],   // bamboo plant
   ],
 };
 
 const APPLIANCES = [
-  { id:'tv', name:'TV', room:'living', pos:[3,0.45,0.28], size:[1.5,0.86,0.06], color:'#15181c',
-    summary:'Wall-side TV on the media stand. The soundbar plugs into HDMI 2, which is the ARC port.',
+  { id:'ac', name:'Samsung air conditioner', room:'vanity', pos:[1.05,2.02,4.03], size:[1.0,0.3,0.24], color:'#f4f4f2',
+    summary:'Wall split unit above the vanity nook. The front looks like Samsung\'s WindFree range, with a display window on the right. The rating label is on the right-hand side of the unit.',
     steps:[
-      'Press the input or source button and pick the input your device is plugged into.',
-      'For sound through the soundbar, check the cable is in HDMI 2 (marked ARC or eARC) on the TV and HDMI ARC on the soundbar.',
-      'In TV settings, turn on HDMI-CEC (it may be called Anynet+, Bravia Sync, SimpLink or EasyLink).',
-      'Set audio output to "HDMI ARC" or "Receiver", not "TV speakers".',
-      'Unplug the TV and soundbar from the wall for 60 seconds, then power the TV on first.',
-      'Still nothing? Try a different HDMI cable. Use a "High Speed with Ethernet" or "Ultra High Speed" cable for ARC.'],
+      'Check the remote shows Cool (snowflake) and a temperature at least 3°C below the room.',
+      'If it says WindFree, press WindFree to turn it off. That mode is gentle and isn\'t meant for a fast cool-down.',
+      'Lift the front panel, slide out the two mesh filters, rinse them under the tap and let them dry fully.',
+      'Check the breaker for the AC is on. Some units also have an isolator switch near the unit.',
+      'After changing mode, wait 3 minutes. The compressor has a built-in restart delay.'],
     issues:[
-      ['"No signal" on screen','The TV is on the wrong input, or the source device is asleep. Wake the device and cycle inputs.'],
-      ['Picture works, no sound','Check the mute and volume on both the TV and soundbar, then confirm audio output is set to HDMI ARC.'],
-      ['Remote does nothing','Replace the batteries. Point a phone camera at the remote tip and press a button. If you see no flicker, the remote is dead.']],
-    pro:'The screen has lines, dark patches or a cracked panel, or the TV clicks but never turns on.', query:'TV HDMI ARC no sound fix' },
+      ['Blows air but not cold','This is usually a dirty filter or the wrong mode. If the filters are clean and it\'s still warm after 15 minutes, the gas may be low.'],
+      ['A code on the display, like C4 or E1','Write down the exact code and search it with the model number from the side label. The code says which part failed.'],
+      ['Musty smell','Clean the filters, and turn on Auto Clean in settings if your unit has it. It dries the coil after you switch off.'],
+      ['Water dripping down the wall','The drain line is blocked. Turn the unit off and book a cleaning service.']],
+    pro:'Ice forms on the pipes, water runs inside the wall, or the outdoor unit never starts.', query:'Samsung WindFree aircon not cooling' },
 
-  { id:'soundbar', name:'Soundbar', room:'living', pos:[3,0.45,0.52], size:[0.95,0.08,0.1], color:'#2a2e33',
-    summary:'Connected to the TV by HDMI ARC. It should turn on and off with the TV.',
-    steps:['Check the soundbar input light shows ARC, HDMI or TV.','Press the input button on the soundbar remote until it says TV or ARC.','Make sure HDMI-CEC is on in the TV settings.','Power cycle the soundbar for 30 seconds.'],
-    issues:[['Sound drops out','Move the subwoofer closer, or re-pair it using the pairing button on its back.'],['Sound is out of sync','Look for an "AV sync" or "lip sync" setting on the soundbar and adjust it in small steps.']],
-    pro:'One speaker crackles at every volume, or the unit smells hot.', query:'soundbar ARC not working' },
+  { id:'remote', name:'AC remote', room:'desk', pos:[3.0,0.75,2.42], size:[0.06,0.025,0.17], color:'#f2f2f0',
+    summary:'Samsung remote that lives on the desk. If the AC ignores you, check the remote before the unit.',
+    steps:[
+      'Look at the remote screen. If it\'s blank or faint, replace both AAA batteries.',
+      'Point it at the display window on the right of the AC, within about 7 m. The unit beeps when it receives a command.',
+      'Point your phone camera at the remote tip and press a button. If you can\'t see a flicker, the remote isn\'t sending.',
+      'Take the batteries out for 1 minute to reset it, then set the mode again.'],
+    issues:[
+      ['Screen works but the AC doesn\'t beep','Bright light on the receiver can block the signal. Close the curtains and try again from closer.'],
+      ['Temperature shows in °F','Most Samsung remotes switch °C and °F by holding the Temp up and down buttons together for a few seconds.']],
+    pro:'The remote is dead with fresh batteries. A replacement remote for the same model is cheap.', query:'Samsung aircon remote not working' },
 
-  { id:'speaker', name:'Smart speaker', room:'living', pos:[4.65,0.55,3.75], size:[0.16,0.2,0.16], shape:'cyl', color:'#7b858f',
-    summary:'Voice speaker on the side table, on the home Wi-Fi.',
-    steps:['Check the mic mute switch is off. The light ring is usually red when muted.','Unplug it for 10 seconds and wait for the startup chime.','Open the speaker app and confirm it shows as online.','If the Wi-Fi password changed, run setup again from the app.'],
-    issues:[['"I\'m having trouble connecting"','Restart the router, then the speaker. Check other devices are online.'],['Doesn\'t hear you','Move it away from the wall and away from the TV, and say the wake word clearly.']],
-    pro:'It will not power on with a known-good adapter.', query:'smart speaker offline fix' },
+  { id:'dryer', name:'Dyson hair dryer', room:'vanity', pos:[0.3,0.78,3.85], size:[0.1,0.26,0.1], shape:'cyl', color:'#4a3b6e',
+    summary:'Supersonic-style dryer on the vanity counter. It plugs into the power strip above it.',
+    steps:[
+      'Check the power strip socket switch is on, and the strip itself is on.',
+      'Clean the filter at the end of the handle. A blocked filter makes it overheat and cut out.',
+      'Unplug it and let it cool for 5 to 10 minutes, then try again.',
+      'If the plug has Test and Reset buttons, press Reset.'],
+    issues:[
+      ['Cuts out or pulses','It is overheating. Clean the filter and keep the air intake clear of hair.'],
+      ['Lights flash and it won\'t heat','Unplug it, clean the filter and let it cool. If it keeps flashing, contact Dyson support with the serial number on the handle.'],
+      ['Weak airflow','The filter is clogged. Clean it with a soft brush.']],
+    pro:'You smell burning, or the cable is cut or kinked near the handle. Stop using it.', query:'Dyson Supersonic cutting out flashing lights' },
 
-  { id:'router', name:'Wi-Fi router', room:'living', pos:[0.3,0.8,2.4], size:[0.26,0.05,0.18], color:'#e9eef2',
-    summary:'The internet for everything else. When several devices are offline, start here.',
-    steps:['Look at the lights. Internet or WAN should be solid, not red or blinking orange.','Unplug the router and the modem (if separate) for 30 seconds.','Plug in the modem first, wait 2 minutes, then the router.','Test with a phone close to the router.','If it\'s still down, check your provider\'s outage page from mobile data.'],
-    issues:[['Slow in the bedroom','Walls slow Wi-Fi down. Raise the router off the shelf floor or add a mesh point near the hall.'],['One device won\'t join','Forget the network on that device and join again with the password.']],
-    pro:'The internet light stays red after restarts and there is no outage. Call your internet provider.', query:'router internet light red' },
+  { id:'curler', name:'Curling iron', room:'vanity', pos:[0.36,0.78,3.5], size:[0.04,0.035,0.3], color:'#d4467d',
+    summary:'Pink curling wand on the vanity, on the same power strip as the dryer.',
+    steps:[
+      'Check its power switch, then the strip socket switch.',
+      'Many curlers switch off by themselves after 30 to 60 minutes. Turn it off and on again.',
+      'If it has a lock or hold button, hold it to unlock the temperature buttons.'],
+    issues:[['Heats slowly','Run it on its own socket rather than at the same time as the dryer.'],['Barrel has residue','When it\'s cold and unplugged, wipe the barrel with a damp cloth.']],
+    pro:'The cable is frayed at the swivel joint. Replace the curler. Don\'t tape it.', query:'curling iron not heating' },
 
-  { id:'ac', name:'Air conditioner', room:'living', pos:[0.18,0.9,1.0], size:[0.22,0.28,0.95], color:'#f3f5f6',
-    summary:'Wall split unit. The outdoor unit is on the balcony side.',
-    steps:['Check the remote mode: snowflake for cool, sun for heat, drop for dry.','Set the temperature at least 3°C below the room for cooling.','Open the front cover and rinse the two mesh filters, then let them dry.','Check the breaker labelled AC is on.','Wait 3 minutes after changing mode. The compressor has a restart delay.'],
-    issues:[['Blows air but not cold','Usually a dirty filter or the wrong mode. If the filters are clean, the gas may be low (call a pro).'],['Water dripping indoors','The drain line is blocked. Turn the unit off and call for a drain clean.'],['Blinking light code','Write down the blink pattern and look it up in the manual by model number.']],
-    pro:'Ice forms on the pipes, there is water inside the wall, or the outdoor fan never spins.', query:'split air conditioner not cooling' },
+  { id:'strip', name:'Vanity power strip', room:'vanity', pos:[0.06,0.98,3.62], size:[0.04,0.07,0.36], color:'#f3f3f1',
+    summary:'Multi-socket strip on the nook wall. It powers the dryer, curler and chargers.',
+    steps:[
+      'Check the switch on each socket and the main switch.',
+      'If the whole strip is dead, try its plug in a different wall socket.',
+      'Unplug everything, then plug back in one at a time to find what trips it.',
+      'If it\'s still dead, the fuse in its plug may have blown. Replace it with the same rating, usually 13 A.'],
+    issues:[
+      ['Trips when the dryer starts','The dryer plus the curler can be close to the strip\'s limit. Run them one at a time.'],
+      ['Plug or strip feels hot','Unplug it now. A hot strip means it\'s overloaded or failing.']],
+    pro:'You see scorch marks, or it buzzes or smells. Replace the strip and get the wall socket checked.', query:'extension strip tripping hair dryer' },
 
-  { id:'vacuum', name:'Robot vacuum', room:'living', pos:[5.45,0,0.5], size:[0.34,0.09,0.34], shape:'cyl', color:'#2e3238',
-    summary:'Docks in the corner by the window.',
-    steps:['Empty the bin and pull hair off the main brush.','Wipe the cliff sensors and charging contacts with a dry cloth.','Check the dock is plugged in and has 0.5 m of clear space on each side.','Restart it by holding the power button for 10 seconds.'],
-    issues:[['Won\'t go back to the dock','Move the dock against a wall away from the rug edge.'],['Stuck on the rug','Set the rug as a no-go zone in the app.']],
-    pro:'The battery lasts under 10 minutes after a full charge. Replace the battery.', query:'robot vacuum not charging' },
+  { id:'laptop', name:'MacBook Pro', room:'desk', pos:[2.5,0.75,2.55], size:[0.32,0.02,0.22], color:'#8a8e93',
+    summary:'Laptop at the desk. It charges from the adapter in the wall socket by the window.',
+    steps:[
+      'If it won\'t charge, check the wall socket switch by the window is on and the adapter is pushed fully in.',
+      'Try the other USB-C port, then a different cable.',
+      'Shut it down fully, wait 30 seconds, then start it again.',
+      'Open System Settings, then Battery, to check battery health.'],
+    issues:[
+      ['Plugged in, not charging','Look for "Charging on hold" or Optimised Charging in Battery settings. It can pause at 80%.'],
+      ['Wi-Fi keeps dropping','Turn Wi-Fi off and on. If it keeps happening, forget the network and join it again.'],
+      ['Runs hot and slow','Open Activity Monitor and sort by CPU to find the app causing it.']],
+    pro:'The trackpad is lifting or the case bulges. That means a swollen battery, so stop using it and book a repair.', query:'MacBook Pro not charging USB-C' },
 
-  { id:'fridge', name:'Fridge', room:'kitchen', pos:[9.55,0,3.78], size:[0.75,1.85,0.68], color:'#d7dde2',
-    summary:'Fridge and freezer combo. Fridge should be 3–4°C and the freezer −18°C.',
-    steps:['Check the temperature display or dial. Fridge 3–4°C, freezer −18°C.','Make sure the door closes fully and the seal isn\'t folded.','Leave 5 cm of space behind it for air.','Vacuum the coils at the back or bottom.','Unplug for 5 minutes to reset if the display shows an error.'],
-    issues:[['Fridge warm, freezer fine','The air vent between them is blocked by food or ice. Clear it, or defrost for 24 h.'],['Clicking and not cooling','The compressor start relay may be failing. Call a technician.'],['Water under the drawers','The defrost drain hole at the back is blocked. Flush it with warm water.']],
-    pro:'Food is warm and the back is silent for over an hour.', query:'fridge not cooling freezer works' },
+  { id:'socket', name:'Wall socket & adapter', room:'desk', pos:[2.95,0.32,1.47], size:[0.09,0.09,0.06], color:'#2f3033',
+    summary:'Socket under the calligraphy scroll, with a multi-port adapter in it. It charges the laptop and phone.',
+    steps:[
+      'Check the socket\'s own switch is on.',
+      'Push the adapter fully in. Adapters often sag out of the socket under a cable\'s weight.',
+      'Test the socket with something simple, like a phone charger.',
+      'If other sockets are dead too, check the breaker box for a tripped switch.'],
+    issues:[['Charges slowly','Plug the laptop straight into the wall, not through the adapter\'s smaller ports.'],['Adapter keeps falling out','Use a short extension lead so the adapter isn\'t hanging from the socket.']],
+    pro:'The socket is warm, crackles or has brown marks.', query:'wall socket not working breaker' },
 
-  { id:'oven', name:'Oven', room:'kitchen', pos:[7.4,0.08,0.67], size:[0.6,0.66,0.04], color:'#20252b',
-    summary:'Built-in electric oven under the cooktop, with a digital timer.',
-    steps:['Check the clock is set. Many ovens won\'t heat until the time is set after a power cut.','Make sure a timer or "Auto" mode isn\'t active. Cancel it with Stop or Cancel.','Check the child lock (often a key icon). Hold the lock button for 3 to 5 seconds.','Pick both a function (fan, grill and so on) and a temperature. Some ovens need both.','Check the oven breaker hasn\'t tripped.'],
-    issues:[['Light and fan on, but no heat','Usually a failed heating element. The grill working while fan bake doesn\'t confirms it.'],['Temperature runs hot or cold','Use an oven thermometer. Most ovens let you offset the temperature in settings.'],['Timer beeps and won\'t stop','Press and hold the timer or minus button to clear it.']],
-    pro:'The breaker trips every time the oven heats, or you smell burning wiring.', query:'oven not heating timer set clock' },
-
-  { id:'cooktop', name:'Induction cooktop', room:'kitchen', pos:[7.4,0.9,0.36], size:[0.6,0.03,0.5], color:'#0c0e10',
-    summary:'Induction hob above the oven. It only works with magnetic pans.',
-    steps:['Test the pan with a magnet. It must stick firmly.','Wipe away spills. Liquid on the controls can lock it.','Check the lock symbol. Hold the key or lock button for 3 seconds.','Centre the pan on the ring.'],
-    issues:[['"U" or blinking ring','No pan was detected. Use a magnetic pan of the right size.'],['Error code like E1 or F3','Turn it off at the breaker for 1 minute, then look up the code in the manual.']],
-    pro:'The glass is cracked. Stop using it.', query:'induction hob error code' },
-
-  { id:'hood', name:'Range hood', room:'kitchen', pos:[7.4,1.5,0.32], size:[0.7,0.28,0.46], color:'#bcc4cb',
-    summary:'Extractor above the cooktop with a grease filter.',
-    steps:['Pull out the metal grease filters and run them through the dishwasher.','If it recirculates, replace the charcoal filter every 3 to 4 months.','Check the light bulb separately from the fan.'],
-    issues:[['Weak suction','The grease filters are clogged. Clean them.'],['Rattling','Tighten the filter clips and the duct clamp.']],
-    pro:'The motor hums but doesn\'t spin.', query:'range hood weak suction' },
-
-  { id:'microwave', name:'Microwave', room:'kitchen', pos:[9.62,0.9,1.9], size:[0.48,0.29,0.38], color:'#2b3036',
-    summary:'Countertop microwave on the side counter.',
-    steps:['Close the door firmly. The door switches stop it from heating if it isn\'t latched.','Check the turntable sits on its roller ring.','Clear the child lock (hold Stop or Cancel for 3 seconds).','Test by heating a cup of water for 1 minute. It should be hot.'],
-    issues:[['Runs but doesn\'t heat','The magnetron or a diode has failed. It\'s usually not worth repairing on a cheap unit.'],['Sparks inside','Remove metal, and check the mica cover on the side wall isn\'t burnt.']],
-    pro:'Never open the case. Capacitors inside stay dangerous after unplugging.', query:'microwave runs but not heating' },
-
-  { id:'dishwasher', name:'Dishwasher', room:'kitchen', pos:[8.5,0.08,0.67], size:[0.6,0.76,0.04], color:'#cfd6dc',
-    summary:'Built in to the right of the oven.',
-    steps:['Twist out the filter at the bottom and rinse it.','Check the spray arms spin freely and the holes aren\'t blocked.','Make sure the water tap under the sink is open.','Top up the rinse aid and salt if the lights are on.'],
-    issues:[['Water left in the bottom','The filter or drain hose is blocked. Clean the filter, and check the hose under the sink isn\'t kinked.'],['Dishes still dirty','Load so the spray arms aren\'t blocked, and run the hot tap first.']],
-    pro:'It leaks from under the door during the cycle.', query:'dishwasher not draining' },
-
-  { id:'coffee', name:'Coffee machine', room:'kitchen', pos:[6.55,0.9,0.32], size:[0.28,0.38,0.32], color:'#3a2f28',
-    summary:'Espresso machine in the corner of the counter.',
-    steps:['Fill the water tank and seat it firmly.','Empty the grounds drawer and the drip tray.','Run a descale cycle if the descale light is on.','Grind coarser if the coffee drips slowly.'],
-    issues:[['Pump noise, no water','There\'s air in the system. Run hot water through the steam wand for 10 seconds.'],['Weak coffee','Use a finer grind or more coffee, and check the brew group is clean.']],
-    pro:'It leaks from the base while heating.', query:'espresso machine no water pump noise' },
-
-  { id:'purifier', name:'Air purifier', room:'bedroom', pos:[4.0,0,5.1], size:[0.34,0.6,0.34], shape:'cyl', color:'#eef0f1',
-    summary:'Bedroom purifier by the door.',
-    steps:['Check the filter light. Most HEPA filters last 6 to 12 months.','Vacuum the pre-filter mesh.','Keep 30 cm of space around it.','Reset the filter timer after replacing the filter by holding the filter button.'],
-    issues:[['Smells musty','Replace the carbon filter.'],['Loud at night','Use sleep mode or auto mode.']],
-    pro:'It doesn\'t turn on with a working outlet.', query:'air purifier filter reset' },
-
-  { id:'heater', name:'Water heater', room:'bathroom', pos:[6.72,0.75,6.6], size:[0.42,0.7,0.42], shape:'cyl', color:'#f4f4f2',
-    summary:'Electric tank on the bathroom wall. It feeds the shower and kitchen hot water.',
-    steps:['Check the breaker labelled "Water heater" or "Boiler".','Check the switch or indicator light on the unit.','Wait 1 to 2 hours. A full tank takes time to reheat after long showers.','Check the thermostat is around 55–60°C.'],
-    issues:[['Lukewarm only','The thermostat is set low, or an element has failed.'],['Dripping valve pipe','Some drips while heating are normal. A steady flow is not.'],['Breaker trips','An element is shorting. Leave it off and call a pro.']],
-    pro:'The tank itself leaks, or there\'s a gas or burning smell.', query:'electric water heater no hot water' },
-
-  { id:'washer', name:'Washing machine', room:'hall', pos:[9.6,0,5.1], size:[0.6,0.85,0.6], color:'#f2f4f5',
-    summary:'Front loader in the hall cupboard.',
-    steps:['Close the door until it clicks. It won\'t start unlocked.','Open the tap behind the machine.','Clean the drain pump filter behind the small flap at the bottom front. Keep a towel ready.','Run a 90°C empty clean cycle monthly.'],
-    issues:[['Won\'t drain or spin','The pump filter is blocked, often by a coin or sock. Clean it.'],['Door won\'t open','Wait 2 minutes after the cycle. If water is still inside, drain it through the filter.'],['Shakes violently','The load is unbalanced, or the transit bolts were never removed.']],
-    pro:'Water leaks from underneath during the fill.', query:'washing machine not draining filter' },
-
-  { id:'dryer', name:'Dryer', room:'hall', pos:[9.6,0,5.8], size:[0.6,0.85,0.6], color:'#e8ebee',
-    summary:'Condenser dryer next to the washer.',
-    steps:['Clean the lint filter in the door after every load.','Empty the water container. It stops when full.','Rinse the condenser unit behind the bottom flap every month.'],
-    issues:[['Clothes still damp','The lint filter or condenser is blocked.'],['Stops mid-cycle','The water tank is full.']],
-    pro:'It heats then smells burnt, or the drum won\'t turn.', query:'condenser dryer not drying' },
-
-  { id:'lock', name:'Smart door lock', room:'hall', pos:[8.85,0.95,7.92], size:[0.08,0.17,0.06], color:'#2b3036',
-    summary:'Keypad lock on the front door. A physical key is the backup.',
-    steps:['Replace the AA batteries if it beeps on unlock or flashes red.','If it\'s fully dead, many models take a 9V battery held to the outside contacts.','Check the door is aligned. The bolt must slide without rubbing.','Re-pair it in the app if remote unlock fails.'],
-    issues:[['Keypad unresponsive','The batteries are flat. Use the key or 9V contacts.'],['Motor strains','Lift or push the door as you lock it, and adjust the strike plate.']],
-    pro:'The bolt is jammed in the locked position.', query:'smart lock dead battery 9V' },
+  { id:'lights', name:'Light switches', room:'entry', pos:[1.45,1.28,0.05], size:[0.15,0.09,0.03], color:'#f6f6f3',
+    summary:'Switch panel next to the entry door, for the room\'s ceiling lights.',
+    steps:['Try each switch. Each one may control a different light.','Swap the bulb for one you know works.','Check the breaker labelled Lights.'],
+    issues:[['Light flickers','This is usually the bulb or its LED driver. Try a new bulb first.'],['Light stays faintly on when switched off','This is common with cheap LED bulbs on some switches. A better LED bulb usually fixes it.']],
+    pro:'The switch sparks, feels warm, or the breaker trips when you flip it.', query:'ceiling light not working switch' },
 ];
-
 /* ---------- STATE ---------- */
 const store = {
   get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
@@ -289,32 +270,32 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 100);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI*0.46;
-controls.minDistance = 2;
-controls.maxDistance = 28;
+controls.maxPolarAngle = Math.PI*0.47;
+controls.minDistance = 0.8;
+controls.maxDistance = 14;
 
 const house = new THREE.Group();
 house.position.set(-HOME.size[0]/2, 0, -HOME.size[1]/2);
 scene.add(house);
 
-const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8f96, 1.1);
+const hemi = new THREE.HemisphereLight(0xfff6e8, 0x8a8f96, 1.1);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(-6, 14, 9);
+const sun = new THREE.DirectionalLight(0xfff3e0, 1.5);
+sun.position.set(3, 9, -2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048,2048);
-Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9});
+Object.assign(sun.shadow.camera,{left:-4,right:4,top:4,bottom:-4});
 sun.shadow.bias = -0.0005;
 scene.add(sun);
 
 const PALETTE = {
-  light:{ bg:'#e7ebee', base:'#c7ced5', wall:'#fbfaf7', wood:'#d9c3a3', wood2:'#cdb79a', tile:'#e2e5e7', tile2:'#d4e0e4',
-          fabric:'#8d9aa8', rug:'#c9b9a2', counter:'#ece9e4', ceramic:'#fbfbfb', door:'#a9876a' },
-  dark: { bg:'#10151a', base:'#1b2229', wall:'#4a535d', wood:'#6b5a46', wood2:'#5e5040', tile:'#3a4148', tile2:'#36454b',
-          fabric:'#4b5663', rug:'#5a4f43', counter:'#5d5a56', ceramic:'#9aa0a5', door:'#6d5644' },
+  light:{ bg:'#e7ebee', floor:'#cfae86', wall:'#f2ead3', rattan:'#c9a46e', steel:'#7f868d', wardrobe:'#e8e5df',
+          stool:'#6c7277', desk:'#3b2b23', chair:'#262626', plant:'#3f7a4a' },
+  dark: { bg:'#10151a', floor:'#6e5a45', wall:'#6a6555', rattan:'#8f7650', steel:'#535a61', wardrobe:'#8c8984',
+          stool:'#474c51', desk:'#2b201b', chair:'#1b1b1b', plant:'#2f5d38' },
 };
 const mats = {};
 const mat = role => mats[role] ||= new THREE.MeshStandardMaterial({ roughness:0.85, metalness:0 });
@@ -327,7 +308,8 @@ function applyTheme(){
   const p = PALETTE[isDark()?'dark':'light'];
   scene.background = new THREE.Color(p.bg);
   for (const k in mats) if (p[k]) mats[k].color.set(p[k]);
-  hemi.intensity = isDark()?0.7:1.1;
+  for (const w of wallObjs) w.mesh.material.color.set(p.wall);
+  hemi.intensity = isDark()?0.75:1.1;
 }
 
 function box(w,h,d,material,x,y,z){
@@ -337,21 +319,26 @@ function box(w,h,d,material,x,y,z){
   house.add(m); return m;
 }
 
-// base slab + floors
-box(HOME.size[0]+0.6, 0.2, HOME.size[1]+0.6, mat('base'), HOME.size[0]/2, -0.2, HOME.size[1]/2).castShadow=false;
+// floor slab per zone
 for (const r of HOME.rooms){
   const [x1,z1,x2,z2] = r.rect;
-  const f = box(x2-x1, 0.02, z2-z1, mat(r.floor), (x1+x2)/2, -0.02, (z1+z2)/2);
-  f.castShadow = false;
+  box(x2-x1, 0.12, z2-z1, mat('floor'), (x1+x2)/2, -0.12, (z1+z2)/2).castShadow = false;
 }
-// walls
-const T = 0.12;
-for (const [x1,z1,x2,z2] of HOME.walls){
-  const len = Math.hypot(x2-x1, z2-z1);
-  const horiz = z1===z2;
-  box(horiz?len+T:T, HOME.wallHeight, horiz?T:len+T, mat('wall'), (x1+x2)/2, 0, (z1+z2)/2);
+// walls: each gets its own material so it can fade when it blocks the view
+const T = 0.1;
+const wallObjs = [];
+for (const [x1,z1,x2,z2,h,nx,nz] of HOME.walls){
+  const len = Math.hypot(x2-x1, z2-z1), horiz = z1===z2;
+  const m = new THREE.MeshStandardMaterial({ roughness:0.95, transparent:true, opacity:1 });
+  const mesh = box(horiz?len+T:T, h, horiz?T:len+T, m, (x1+x2)/2, 0, (z1+z2)/2);
+  mesh.castShadow = false;
+  wallObjs.push({ mesh, out:new THREE.Vector2(nx,nz), decor:[], op:1 });
 }
-// furniture
+for (const [x,y,z,w,h,d,color,wi] of HOME.decor){
+  const m = box(w,h,d,new THREE.MeshStandardMaterial({ color, roughness:0.7, transparent:true }),x,y,z);
+  m.castShadow = false;
+  wallObjs[wi].decor.push(m);
+}
 for (const [x,y,z,w,h,d,role] of HOME.furniture) box(w,h,d,mat(role),x,y,z);
 
 // appliances
@@ -373,16 +360,31 @@ for (const a of APPLIANCES){
 house.updateMatrixWorld(true);
 for (const a of APPLIANCES){
   a.mesh.getWorldPosition(a.world);
-  a.pinAt = a.world.clone().add(new THREE.Vector3(0, a.size[1]/2 + 0.12, 0));
+  a.pinAt = a.world.clone().add(new THREE.Vector3(0, a.size[1]/2 + 0.08, 0));
 }
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
+// fade walls that sit between the camera and the room
+const camFlat = new THREE.Vector2();
+function fadeWalls(){
+  camFlat.set(camera.position.x - controls.target.x, camera.position.z - controls.target.z).normalize();
+  for (const w of wallObjs){
+    const goal = w.out.dot(camFlat) > 0.25 ? 0.08 : 1;
+    w.op += (goal - w.op) * (reduceMotion ? 1 : 0.15);
+    for (const m of [w.mesh, ...w.decor]){
+      m.material.opacity = w.op;
+      m.material.depthWrite = w.op > 0.5;
+      m.visible = w.op > 0.02;
+    }
+  }
+}
+
 /* ---------- CAMERA ---------- */
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const HOME_VIEW = { pos:new THREE.Vector3(0, 11.5, 10.5), target:new THREE.Vector3(0,0,0.3) };
+const HOME_VIEW = { pos:new THREE.Vector3(3.9, 7.4, -5.9), target:new THREE.Vector3(0,1.35,0.1) };
 let tween = null;
 function flyTo(pos, target){
   if (reduceMotion){ camera.position.copy(pos); controls.target.copy(target); return; }
@@ -390,20 +392,22 @@ function flyTo(pos, target){
 }
 function roomCenter(id){
   const [x1,z1,x2,z2] = roomById[id].rect;
-  return new THREE.Vector3((x1+x2)/2 - HOME.size[0]/2, 0, (z1+z2)/2 - HOME.size[1]/2);
+  return new THREE.Vector3((x1+x2)/2 - HOME.size[0]/2, 0.5, (z1+z2)/2 - HOME.size[1]/2);
 }
 function viewRoom(id){
   if (id==='all') return flyTo(HOME_VIEW.pos.clone(), HOME_VIEW.target.clone());
+  const [x1,z1,x2,z2] = roomById[id].rect;
+  const s = Math.max(x2-x1, z2-z1) + 1.2;
   const c = roomCenter(id);
-  flyTo(c.clone().add(new THREE.Vector3(0, 6.2, 5.2)), c);
+  flyTo(c.clone().add(new THREE.Vector3(s*0.55, s*1.25, -s*0.95)), c);
 }
 function viewAppliance(a){
-  const c = roomCenter(a.room);
+  const c = new THREE.Vector3(0, a.world.y, 0); // room centre at the appliance's height
   const dir = new THREE.Vector3(c.x - a.world.x, 0, c.z - a.world.z);
-  if (dir.lengthSq() < 0.01) dir.set(0,0,1);
+  if (dir.lengthSq() < 0.01) dir.set(0,0,-1);
   dir.normalize();
-  const dist = 3.2 + Math.max(...a.size)*1.6;
-  flyTo(a.world.clone().add(dir.multiplyScalar(dist)).add(new THREE.Vector3(0, 2.8, 0)), a.world.clone());
+  const dist = 1.1 + Math.max(...a.size)*1.6;
+  flyTo(a.world.clone().add(dir.multiplyScalar(dist)).add(new THREE.Vector3(0, 0.9, 0)), a.world.clone());
 }
 camera.position.copy(HOME_VIEW.pos);
 controls.target.copy(HOME_VIEW.target);
@@ -413,7 +417,7 @@ function resize(){
   renderer.setSize(w, h, false);
   camera.aspect = w/h;
   // pull back on narrow screens so the whole flat fits
-  camera.fov = w/h < 1 ? 52 : 38;
+  camera.fov = w/h < 1 ? 55 : 40;
   camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(stage);
@@ -475,12 +479,12 @@ canvas.addEventListener('pointerup', e=>{
 /* ---------- PANEL ---------- */
 const panel = document.getElementById('panel');
 const esc = s => s.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-document.getElementById('count').textContent = `${APPLIANCES.length} appliances · ${HOME.rooms.length} rooms`;
+document.getElementById('count').textContent = `${APPLIANCES.length} things mapped · 1 room so far`;
 
 const chips = document.getElementById('chips');
 function renderChips(){
   chips.innerHTML = '';
-  for (const r of [{id:'all',name:'Whole home'}, ...HOME.rooms]){
+  for (const r of [{id:'all',name:'Whole room'}, ...HOME.rooms]){
     const b = document.createElement('button');
     b.className='chip'; b.textContent=r.name;
     b.setAttribute('aria-pressed', String(roomFilter===r.id));
@@ -502,7 +506,7 @@ function renderList(){
   panel.innerHTML = `<div class="pad">
     <div><div class="eyebrow">${esc(HOME.name)}</div>
     <h2>What stopped working?</h2></div>
-    <p class="lede">Tap the appliance in the 3D map or pick it below. Each one opens the checks to try first, the common faults, and when to call someone.</p>
+    <p class="lede">Tap anything with a dot in the 3D room, or pick it below. Each one opens the checks to try first, the common faults, and when to call someone.</p>
     <input class="search" id="q" type="search" placeholder="Search appliances, e.g. no sound" value="${esc(query)}" aria-label="Search appliances">
     ${groups || '<p class="empty">Nothing matches that search. Try the appliance name, like "fridge".</p>'}
   </div>`;
@@ -521,7 +525,7 @@ function renderDetail(a){
     <div><div class="eyebrow">${roomById[a.room].name} · No. ${a.n}</div><h2>${esc(a.name)}</h2></div>
     <p class="lede">${esc(a.summary)}</p>
     <div class="model"><label for="model">Model number</label>
-      <input id="model" placeholder="From the sticker, e.g. QE55Q60B" value="${esc(model)}"></div>
+      <input id="model" placeholder="From the label on the device" value="${esc(model)}"></div>
     <section class="block"><h4>Start here</h4>
       <ol class="steps">${a.steps.map((s,i)=>`<li><label><input type="checkbox" id="st-${a.id}-${i}"><span class="box" aria-hidden="true"></span><span>${esc(s)}</span></label></li>`).join('')}</ol>
       <div class="progress" id="prog">0 of ${a.steps.length} tried</div>
@@ -581,6 +585,7 @@ function frame(now){
     if (t===1) tween=null;
   }
   controls.update();
+  fadeWalls();
   renderer.render(scene, camera);
   placePins();
   requestAnimationFrame(frame);
