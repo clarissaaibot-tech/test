@@ -1,0 +1,589 @@
+<title>Home Fix Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D dollhouse on the left, service-manual panel on the right (bottom sheet on phones). */
+:root{
+  --bg:#e7ebee; --surface:#fbfcfc; --ink:#17202a; --muted:#56616d; --line:#d3d9de;
+  --accent:#1f56e0; --accent-soft:#e3eafc; --led:#ef9d10; --ok:#1d8a5a;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10151a; --surface:#181e25; --ink:#e7ecf1; --muted:#9aa5b0; --line:#2a333d;
+  --accent:#7aa2ff; --accent-soft:#1d2a47; --led:#f5b43a; --ok:#4cc28c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10151a; --surface:#181e25; --ink:#e7ecf1; --muted:#9aa5b0; --line:#2a333d;
+  --accent:#7aa2ff; --accent-soft:#1d2a47; --led:#f5b43a; --ok:#4cc28c; color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;overflow:hidden}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 400px}
+.stage{position:relative;min-width:0;overflow:hidden}
+#scene{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#scene.hovering{cursor:pointer}
+.top{position:absolute;left:0;right:0;top:0;padding:14px max(16px,env(safe-area-inset-left,0px)) 0;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:-.01em}
+.brand span{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;pointer-events:auto}
+.chip{font:500 13px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chip:focus-visible,.row:focus-visible,.pin:focus-visible,.back:focus-visible,.link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;font-family:var(--f-mono);font-size:11.5px;color:var(--muted);pointer-events:none}
+
+#pins{position:absolute;inset:0;pointer-events:none}
+.pin{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;gap:6px;transform:translate(-50%,-100%);background:none;border:0;padding:0;cursor:pointer;font:500 12px var(--f-body);color:var(--ink)}
+.pin .dot{width:22px;height:22px;border-radius:50%;background:var(--led);color:#1d1400;display:grid;place-items:center;font:600 11px var(--f-mono);box-shadow:0 0 0 3px color-mix(in srgb,var(--led) 30%,transparent);transition:transform .15s}
+.pin .tag{display:none;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 8px;white-space:nowrap}
+.pin:hover .tag,.pin.on .tag{display:block}
+.pin:hover .dot{transform:scale(1.15)}
+.pin.on .dot{background:var(--accent);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 35%,transparent)}
+.pin.dim{opacity:.28}
+
+.panel{background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;min-width:0;display:flex;flex-direction:column}
+.pad{padding:20px 22px 28px;display:flex;flex-direction:column;gap:18px}
+.eyebrow{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.panel h2{margin:2px 0 0;font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1.15;text-wrap:balance}
+.lede{margin:0;color:var(--muted)}
+.search{width:100%;font:15px var(--f-body);padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.group{display:flex;flex-direction:column;gap:2px}
+.group h3{margin:0 0 4px;font:600 12px var(--f-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;justify-content:space-between}
+.row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;text-align:left;background:none;border:0;border-radius:8px;padding:8px 6px;cursor:pointer;color:var(--ink);font:inherit}
+.row:hover{background:var(--accent-soft)}
+.row .n{font:600 11px var(--f-mono);width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--led) 25%,transparent);color:var(--ink)}
+.row .s{font-size:12.5px;color:var(--muted)}
+.row .go{color:var(--muted);font-family:var(--f-mono)}
+.empty{color:var(--muted);font-size:14px}
+
+.back{align-self:flex-start;background:none;border:0;color:var(--accent);font:500 14px var(--f-body);cursor:pointer;padding:0}
+.model{display:flex;flex-direction:column;gap:4px}
+.model label{font:500 12px var(--f-mono);color:var(--muted)}
+.model input{font:14px var(--f-mono);padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+section.block{display:flex;flex-direction:column;gap:10px}
+section.block h4{margin:0;font-family:var(--f-display);font-weight:500;font-size:17px}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;counter-reset:s}
+ol.steps li{counter-increment:s}
+ol.steps label{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:start;cursor:pointer;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+ol.steps input{position:absolute;opacity:0;pointer-events:none}
+ol.steps .box{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;font:600 11px var(--f-mono);color:var(--muted)}
+ol.steps .box::before{content:counter(s)}
+ol.steps input:checked + .box{background:var(--ok);border-color:var(--ok);color:#fff}
+ol.steps input:checked + .box::before{content:"\2713"}
+ol.steps input:checked ~ span{color:var(--muted);text-decoration:line-through}
+ol.steps input:focus-visible + .box{outline:2px solid var(--accent);outline-offset:2px}
+.progress{font:12px var(--f-mono);color:var(--muted)}
+details{border-top:1px solid var(--line);padding:9px 0}
+details:last-child{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;font-weight:500}
+details p{margin:6px 0 0;color:var(--muted)}
+.pro{background:var(--accent-soft);border-radius:8px;padding:12px 14px;font-size:14px}
+.pro strong{display:block;font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:2px}
+.link{color:var(--accent);font-weight:500}
+
+@media (max-width: 820px){
+  .app{grid-template-columns:1fr;grid-template-rows:52% 48%}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .pad{padding:16px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+  .hint{display:none}
+  .brand h1{font-size:19px}
+}
+@media (prefers-reduced-motion: reduce){.pin .dot{transition:none}}
+</style>
+
+<div class="app">
+  <div class="stage">
+    <canvas id="scene" aria-label="3D map of the apartment. Click an appliance to open its help."></canvas>
+    <div id="pins"></div>
+    <div class="top">
+      <div class="brand"><h1>Home Fix Map</h1><span id="count"></span></div>
+      <div class="chips" id="chips" role="group" aria-label="Rooms"></div>
+    </div>
+    <div class="hint">Drag to orbit · scroll or pinch to zoom · tap a dot</div>
+  </div>
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ---------- HOME DATA (swap this for a real apartment) ---------- */
+const HOME = {
+  name: 'Sample apartment',
+  size: [10, 8],               // metres, x by z
+  wallHeight: 1.25,
+  rooms: [
+    { id:'living',   name:'Living room',    rect:[0,0,6,4.5],   floor:'wood' },
+    { id:'kitchen',  name:'Kitchen',        rect:[6,0,10,4.5],  floor:'tile' },
+    { id:'bedroom',  name:'Bedroom',        rect:[0,4.5,4.5,8], floor:'wood2' },
+    { id:'bathroom', name:'Bathroom',       rect:[4.5,4.5,7,8], floor:'tile2' },
+    { id:'hall',     name:'Laundry & hall', rect:[7,4.5,10,8], floor:'tile' },
+  ],
+  walls: [
+    [0,0,10,0],[10,0,10,8],[0,8,8,8],[9,8,10,8],[0,0,0,8],
+    [0,4.5,3,4.5],[3.9,4.5,5.3,4.5],[6.1,4.5,7.8,4.5],[9.2,4.5,10,4.5],
+    [4.5,4.5,4.5,8],[7,4.5,7,8],[6,0,6,0.9],
+  ],
+  furniture: [ // [x,y,z, w,h,d, role]
+    [3,0,0.35, 1.8,0.45,0.45,'wood'],            // TV stand
+    [3,0,3.75, 2.2,0.72,0.85,'fabric'],          // sofa
+    [3,0,2.35, 1.1,0.38,0.6,'wood'],             // coffee table
+    [3,0,2.6, 3.0,0.01,2.2,'rug'],               // rug
+    [4.65,0,3.75, 0.42,0.55,0.42,'wood'],        // side table
+    [0.3,0,2.4, 0.4,0.8,1.0,'wood'],             // shelf
+    [8.05,0,0.36, 3.9,0.9,0.6,'counter'],        // counter along back wall
+    [9.64,0,1.8, 0.6,0.9,2.3,'counter'],         // counter along side wall
+    [7.6,0,2.7, 1.4,0.74,0.8,'wood'],            // dining table
+    [1.6,0,6.85, 1.8,0.5,2.1,'fabric'],          // bed
+    [0.42,0,6.4, 0.45,0.5,0.4,'wood'],           // nightstand
+    [0.4,0,5.0, 0.6,1.2,0.8,'wood'],             // wardrobe
+    [5.6,0,7.5, 1.6,0.55,0.75,'ceramic'],        // bathtub
+    [4.95,0,5.4, 0.4,0.42,0.6,'ceramic'],        // toilet
+    [6.6,0,5.0, 0.6,0.85,0.45,'ceramic'],        // sink
+    [8.5,0,7.97, 0.95,1.25,0.06,'door'],         // front door
+  ],
+};
+
+const APPLIANCES = [
+  { id:'tv', name:'TV', room:'living', pos:[3,0.45,0.28], size:[1.5,0.86,0.06], color:'#15181c',
+    summary:'Wall-side TV on the media stand. The soundbar plugs into HDMI 2, which is the ARC port.',
+    steps:[
+      'Press the input or source button and pick the input your device is plugged into.',
+      'For sound through the soundbar, check the cable is in HDMI 2 (marked ARC or eARC) on the TV and HDMI ARC on the soundbar.',
+      'In TV settings, turn on HDMI-CEC (it may be called Anynet+, Bravia Sync, SimpLink or EasyLink).',
+      'Set audio output to "HDMI ARC" or "Receiver", not "TV speakers".',
+      'Unplug the TV and soundbar from the wall for 60 seconds, then power the TV on first.',
+      'Still nothing? Try a different HDMI cable. Use a "High Speed with Ethernet" or "Ultra High Speed" cable for ARC.'],
+    issues:[
+      ['"No signal" on screen','The TV is on the wrong input, or the source device is asleep. Wake the device and cycle inputs.'],
+      ['Picture works, no sound','Check the mute and volume on both the TV and soundbar, then confirm audio output is set to HDMI ARC.'],
+      ['Remote does nothing','Replace the batteries. Point a phone camera at the remote tip and press a button. If you see no flicker, the remote is dead.']],
+    pro:'The screen has lines, dark patches or a cracked panel, or the TV clicks but never turns on.', query:'TV HDMI ARC no sound fix' },
+
+  { id:'soundbar', name:'Soundbar', room:'living', pos:[3,0.45,0.52], size:[0.95,0.08,0.1], color:'#2a2e33',
+    summary:'Connected to the TV by HDMI ARC. It should turn on and off with the TV.',
+    steps:['Check the soundbar input light shows ARC, HDMI or TV.','Press the input button on the soundbar remote until it says TV or ARC.','Make sure HDMI-CEC is on in the TV settings.','Power cycle the soundbar for 30 seconds.'],
+    issues:[['Sound drops out','Move the subwoofer closer, or re-pair it using the pairing button on its back.'],['Sound is out of sync','Look for an "AV sync" or "lip sync" setting on the soundbar and adjust it in small steps.']],
+    pro:'One speaker crackles at every volume, or the unit smells hot.', query:'soundbar ARC not working' },
+
+  { id:'speaker', name:'Smart speaker', room:'living', pos:[4.65,0.55,3.75], size:[0.16,0.2,0.16], shape:'cyl', color:'#7b858f',
+    summary:'Voice speaker on the side table, on the home Wi-Fi.',
+    steps:['Check the mic mute switch is off. The light ring is usually red when muted.','Unplug it for 10 seconds and wait for the startup chime.','Open the speaker app and confirm it shows as online.','If the Wi-Fi password changed, run setup again from the app.'],
+    issues:[['"I\'m having trouble connecting"','Restart the router, then the speaker. Check other devices are online.'],['Doesn\'t hear you','Move it away from the wall and away from the TV, and say the wake word clearly.']],
+    pro:'It will not power on with a known-good adapter.', query:'smart speaker offline fix' },
+
+  { id:'router', name:'Wi-Fi router', room:'living', pos:[0.3,0.8,2.4], size:[0.26,0.05,0.18], color:'#e9eef2',
+    summary:'The internet for everything else. When several devices are offline, start here.',
+    steps:['Look at the lights. Internet or WAN should be solid, not red or blinking orange.','Unplug the router and the modem (if separate) for 30 seconds.','Plug in the modem first, wait 2 minutes, then the router.','Test with a phone close to the router.','If it\'s still down, check your provider\'s outage page from mobile data.'],
+    issues:[['Slow in the bedroom','Walls slow Wi-Fi down. Raise the router off the shelf floor or add a mesh point near the hall.'],['One device won\'t join','Forget the network on that device and join again with the password.']],
+    pro:'The internet light stays red after restarts and there is no outage. Call your internet provider.', query:'router internet light red' },
+
+  { id:'ac', name:'Air conditioner', room:'living', pos:[0.18,0.9,1.0], size:[0.22,0.28,0.95], color:'#f3f5f6',
+    summary:'Wall split unit. The outdoor unit is on the balcony side.',
+    steps:['Check the remote mode: snowflake for cool, sun for heat, drop for dry.','Set the temperature at least 3°C below the room for cooling.','Open the front cover and rinse the two mesh filters, then let them dry.','Check the breaker labelled AC is on.','Wait 3 minutes after changing mode. The compressor has a restart delay.'],
+    issues:[['Blows air but not cold','Usually a dirty filter or the wrong mode. If the filters are clean, the gas may be low (call a pro).'],['Water dripping indoors','The drain line is blocked. Turn the unit off and call for a drain clean.'],['Blinking light code','Write down the blink pattern and look it up in the manual by model number.']],
+    pro:'Ice forms on the pipes, there is water inside the wall, or the outdoor fan never spins.', query:'split air conditioner not cooling' },
+
+  { id:'vacuum', name:'Robot vacuum', room:'living', pos:[5.45,0,0.5], size:[0.34,0.09,0.34], shape:'cyl', color:'#2e3238',
+    summary:'Docks in the corner by the window.',
+    steps:['Empty the bin and pull hair off the main brush.','Wipe the cliff sensors and charging contacts with a dry cloth.','Check the dock is plugged in and has 0.5 m of clear space on each side.','Restart it by holding the power button for 10 seconds.'],
+    issues:[['Won\'t go back to the dock','Move the dock against a wall away from the rug edge.'],['Stuck on the rug','Set the rug as a no-go zone in the app.']],
+    pro:'The battery lasts under 10 minutes after a full charge. Replace the battery.', query:'robot vacuum not charging' },
+
+  { id:'fridge', name:'Fridge', room:'kitchen', pos:[9.55,0,3.78], size:[0.75,1.85,0.68], color:'#d7dde2',
+    summary:'Fridge and freezer combo. Fridge should be 3–4°C and the freezer −18°C.',
+    steps:['Check the temperature display or dial. Fridge 3–4°C, freezer −18°C.','Make sure the door closes fully and the seal isn\'t folded.','Leave 5 cm of space behind it for air.','Vacuum the coils at the back or bottom.','Unplug for 5 minutes to reset if the display shows an error.'],
+    issues:[['Fridge warm, freezer fine','The air vent between them is blocked by food or ice. Clear it, or defrost for 24 h.'],['Clicking and not cooling','The compressor start relay may be failing. Call a technician.'],['Water under the drawers','The defrost drain hole at the back is blocked. Flush it with warm water.']],
+    pro:'Food is warm and the back is silent for over an hour.', query:'fridge not cooling freezer works' },
+
+  { id:'oven', name:'Oven', room:'kitchen', pos:[7.4,0.08,0.67], size:[0.6,0.66,0.04], color:'#20252b',
+    summary:'Built-in electric oven under the cooktop, with a digital timer.',
+    steps:['Check the clock is set. Many ovens won\'t heat until the time is set after a power cut.','Make sure a timer or "Auto" mode isn\'t active. Cancel it with Stop or Cancel.','Check the child lock (often a key icon). Hold the lock button for 3 to 5 seconds.','Pick both a function (fan, grill and so on) and a temperature. Some ovens need both.','Check the oven breaker hasn\'t tripped.'],
+    issues:[['Light and fan on, but no heat','Usually a failed heating element. The grill working while fan bake doesn\'t confirms it.'],['Temperature runs hot or cold','Use an oven thermometer. Most ovens let you offset the temperature in settings.'],['Timer beeps and won\'t stop','Press and hold the timer or minus button to clear it.']],
+    pro:'The breaker trips every time the oven heats, or you smell burning wiring.', query:'oven not heating timer set clock' },
+
+  { id:'cooktop', name:'Induction cooktop', room:'kitchen', pos:[7.4,0.9,0.36], size:[0.6,0.03,0.5], color:'#0c0e10',
+    summary:'Induction hob above the oven. It only works with magnetic pans.',
+    steps:['Test the pan with a magnet. It must stick firmly.','Wipe away spills. Liquid on the controls can lock it.','Check the lock symbol. Hold the key or lock button for 3 seconds.','Centre the pan on the ring.'],
+    issues:[['"U" or blinking ring','No pan was detected. Use a magnetic pan of the right size.'],['Error code like E1 or F3','Turn it off at the breaker for 1 minute, then look up the code in the manual.']],
+    pro:'The glass is cracked. Stop using it.', query:'induction hob error code' },
+
+  { id:'hood', name:'Range hood', room:'kitchen', pos:[7.4,1.5,0.32], size:[0.7,0.28,0.46], color:'#bcc4cb',
+    summary:'Extractor above the cooktop with a grease filter.',
+    steps:['Pull out the metal grease filters and run them through the dishwasher.','If it recirculates, replace the charcoal filter every 3 to 4 months.','Check the light bulb separately from the fan.'],
+    issues:[['Weak suction','The grease filters are clogged. Clean them.'],['Rattling','Tighten the filter clips and the duct clamp.']],
+    pro:'The motor hums but doesn\'t spin.', query:'range hood weak suction' },
+
+  { id:'microwave', name:'Microwave', room:'kitchen', pos:[9.62,0.9,1.9], size:[0.48,0.29,0.38], color:'#2b3036',
+    summary:'Countertop microwave on the side counter.',
+    steps:['Close the door firmly. The door switches stop it from heating if it isn\'t latched.','Check the turntable sits on its roller ring.','Clear the child lock (hold Stop or Cancel for 3 seconds).','Test by heating a cup of water for 1 minute. It should be hot.'],
+    issues:[['Runs but doesn\'t heat','The magnetron or a diode has failed. It\'s usually not worth repairing on a cheap unit.'],['Sparks inside','Remove metal, and check the mica cover on the side wall isn\'t burnt.']],
+    pro:'Never open the case. Capacitors inside stay dangerous after unplugging.', query:'microwave runs but not heating' },
+
+  { id:'dishwasher', name:'Dishwasher', room:'kitchen', pos:[8.5,0.08,0.67], size:[0.6,0.76,0.04], color:'#cfd6dc',
+    summary:'Built in to the right of the oven.',
+    steps:['Twist out the filter at the bottom and rinse it.','Check the spray arms spin freely and the holes aren\'t blocked.','Make sure the water tap under the sink is open.','Top up the rinse aid and salt if the lights are on.'],
+    issues:[['Water left in the bottom','The filter or drain hose is blocked. Clean the filter, and check the hose under the sink isn\'t kinked.'],['Dishes still dirty','Load so the spray arms aren\'t blocked, and run the hot tap first.']],
+    pro:'It leaks from under the door during the cycle.', query:'dishwasher not draining' },
+
+  { id:'coffee', name:'Coffee machine', room:'kitchen', pos:[6.55,0.9,0.32], size:[0.28,0.38,0.32], color:'#3a2f28',
+    summary:'Espresso machine in the corner of the counter.',
+    steps:['Fill the water tank and seat it firmly.','Empty the grounds drawer and the drip tray.','Run a descale cycle if the descale light is on.','Grind coarser if the coffee drips slowly.'],
+    issues:[['Pump noise, no water','There\'s air in the system. Run hot water through the steam wand for 10 seconds.'],['Weak coffee','Use a finer grind or more coffee, and check the brew group is clean.']],
+    pro:'It leaks from the base while heating.', query:'espresso machine no water pump noise' },
+
+  { id:'purifier', name:'Air purifier', room:'bedroom', pos:[4.0,0,5.1], size:[0.34,0.6,0.34], shape:'cyl', color:'#eef0f1',
+    summary:'Bedroom purifier by the door.',
+    steps:['Check the filter light. Most HEPA filters last 6 to 12 months.','Vacuum the pre-filter mesh.','Keep 30 cm of space around it.','Reset the filter timer after replacing the filter by holding the filter button.'],
+    issues:[['Smells musty','Replace the carbon filter.'],['Loud at night','Use sleep mode or auto mode.']],
+    pro:'It doesn\'t turn on with a working outlet.', query:'air purifier filter reset' },
+
+  { id:'heater', name:'Water heater', room:'bathroom', pos:[6.72,0.75,6.6], size:[0.42,0.7,0.42], shape:'cyl', color:'#f4f4f2',
+    summary:'Electric tank on the bathroom wall. It feeds the shower and kitchen hot water.',
+    steps:['Check the breaker labelled "Water heater" or "Boiler".','Check the switch or indicator light on the unit.','Wait 1 to 2 hours. A full tank takes time to reheat after long showers.','Check the thermostat is around 55–60°C.'],
+    issues:[['Lukewarm only','The thermostat is set low, or an element has failed.'],['Dripping valve pipe','Some drips while heating are normal. A steady flow is not.'],['Breaker trips','An element is shorting. Leave it off and call a pro.']],
+    pro:'The tank itself leaks, or there\'s a gas or burning smell.', query:'electric water heater no hot water' },
+
+  { id:'washer', name:'Washing machine', room:'hall', pos:[9.6,0,5.1], size:[0.6,0.85,0.6], color:'#f2f4f5',
+    summary:'Front loader in the hall cupboard.',
+    steps:['Close the door until it clicks. It won\'t start unlocked.','Open the tap behind the machine.','Clean the drain pump filter behind the small flap at the bottom front. Keep a towel ready.','Run a 90°C empty clean cycle monthly.'],
+    issues:[['Won\'t drain or spin','The pump filter is blocked, often by a coin or sock. Clean it.'],['Door won\'t open','Wait 2 minutes after the cycle. If water is still inside, drain it through the filter.'],['Shakes violently','The load is unbalanced, or the transit bolts were never removed.']],
+    pro:'Water leaks from underneath during the fill.', query:'washing machine not draining filter' },
+
+  { id:'dryer', name:'Dryer', room:'hall', pos:[9.6,0,5.8], size:[0.6,0.85,0.6], color:'#e8ebee',
+    summary:'Condenser dryer next to the washer.',
+    steps:['Clean the lint filter in the door after every load.','Empty the water container. It stops when full.','Rinse the condenser unit behind the bottom flap every month.'],
+    issues:[['Clothes still damp','The lint filter or condenser is blocked.'],['Stops mid-cycle','The water tank is full.']],
+    pro:'It heats then smells burnt, or the drum won\'t turn.', query:'condenser dryer not drying' },
+
+  { id:'lock', name:'Smart door lock', room:'hall', pos:[8.85,0.95,7.92], size:[0.08,0.17,0.06], color:'#2b3036',
+    summary:'Keypad lock on the front door. A physical key is the backup.',
+    steps:['Replace the AA batteries if it beeps on unlock or flashes red.','If it\'s fully dead, many models take a 9V battery held to the outside contacts.','Check the door is aligned. The bolt must slide without rubbing.','Re-pair it in the app if remote unlock fails.'],
+    issues:[['Keypad unresponsive','The batteries are flat. Use the key or 9V contacts.'],['Motor strains','Lift or push the door as you lock it, and adjust the strike plate.']],
+    pro:'The bolt is jammed in the locked position.', query:'smart lock dead battery 9V' },
+];
+
+/* ---------- STATE ---------- */
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+};
+let roomFilter = 'all';
+let selectedId = null;
+let query = '';
+const roomById = Object.fromEntries(HOME.rooms.map(r=>[r.id,r]));
+APPLIANCES.forEach((a,i)=>a.n=i+1);
+
+/* ---------- THREE SETUP ---------- */
+const canvas = document.getElementById('scene');
+const stage = canvas.parentElement;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI*0.46;
+controls.minDistance = 2;
+controls.maxDistance = 28;
+
+const house = new THREE.Group();
+house.position.set(-HOME.size[0]/2, 0, -HOME.size[1]/2);
+scene.add(house);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8f96, 1.1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(-6, 14, 9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9});
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const PALETTE = {
+  light:{ bg:'#e7ebee', base:'#c7ced5', wall:'#fbfaf7', wood:'#d9c3a3', wood2:'#cdb79a', tile:'#e2e5e7', tile2:'#d4e0e4',
+          fabric:'#8d9aa8', rug:'#c9b9a2', counter:'#ece9e4', ceramic:'#fbfbfb', door:'#a9876a' },
+  dark: { bg:'#10151a', base:'#1b2229', wall:'#4a535d', wood:'#6b5a46', wood2:'#5e5040', tile:'#3a4148', tile2:'#36454b',
+          fabric:'#4b5663', rug:'#5a4f43', counter:'#5d5a56', ceramic:'#9aa0a5', door:'#6d5644' },
+};
+const mats = {};
+const mat = role => mats[role] ||= new THREE.MeshStandardMaterial({ roughness:0.85, metalness:0 });
+function isDark(){
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t) return t==='dark';
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function applyTheme(){
+  const p = PALETTE[isDark()?'dark':'light'];
+  scene.background = new THREE.Color(p.bg);
+  for (const k in mats) if (p[k]) mats[k].color.set(p[k]);
+  hemi.intensity = isDark()?0.7:1.1;
+}
+
+function box(w,h,d,material,x,y,z){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), material);
+  m.position.set(x, y+h/2, z);
+  m.castShadow = m.receiveShadow = true;
+  house.add(m); return m;
+}
+
+// base slab + floors
+box(HOME.size[0]+0.6, 0.2, HOME.size[1]+0.6, mat('base'), HOME.size[0]/2, -0.2, HOME.size[1]/2).castShadow=false;
+for (const r of HOME.rooms){
+  const [x1,z1,x2,z2] = r.rect;
+  const f = box(x2-x1, 0.02, z2-z1, mat(r.floor), (x1+x2)/2, -0.02, (z1+z2)/2);
+  f.castShadow = false;
+}
+// walls
+const T = 0.12;
+for (const [x1,z1,x2,z2] of HOME.walls){
+  const len = Math.hypot(x2-x1, z2-z1);
+  const horiz = z1===z2;
+  box(horiz?len+T:T, HOME.wallHeight, horiz?T:len+T, mat('wall'), (x1+x2)/2, 0, (z1+z2)/2);
+}
+// furniture
+for (const [x,y,z,w,h,d,role] of HOME.furniture) box(w,h,d,mat(role),x,y,z);
+
+// appliances
+const pickables = [];
+for (const a of APPLIANCES){
+  const m = new THREE.MeshStandardMaterial({ color:a.color, roughness:0.45, metalness:0.15, emissive:0x000000 });
+  const [w,h,d] = a.size;
+  let mesh;
+  if (a.shape==='cyl'){
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(w/2, w/2, h, 32), m);
+    mesh.position.set(a.pos[0], a.pos[1]+h/2, a.pos[2]);
+    mesh.castShadow = mesh.receiveShadow = true; house.add(mesh);
+  } else mesh = box(w,h,d,m,...a.pos);
+  mesh.userData.id = a.id;
+  a.mesh = mesh;
+  a.world = new THREE.Vector3();
+  pickables.push(mesh);
+}
+house.updateMatrixWorld(true);
+for (const a of APPLIANCES){
+  a.mesh.getWorldPosition(a.world);
+  a.pinAt = a.world.clone().add(new THREE.Vector3(0, a.size[1]/2 + 0.12, 0));
+}
+
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* ---------- CAMERA ---------- */
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HOME_VIEW = { pos:new THREE.Vector3(0, 11.5, 10.5), target:new THREE.Vector3(0,0,0.3) };
+let tween = null;
+function flyTo(pos, target){
+  if (reduceMotion){ camera.position.copy(pos); controls.target.copy(target); return; }
+  tween = { p0:camera.position.clone(), t0:controls.target.clone(), p1:pos, t1:target, start:performance.now(), dur:750 };
+}
+function roomCenter(id){
+  const [x1,z1,x2,z2] = roomById[id].rect;
+  return new THREE.Vector3((x1+x2)/2 - HOME.size[0]/2, 0, (z1+z2)/2 - HOME.size[1]/2);
+}
+function viewRoom(id){
+  if (id==='all') return flyTo(HOME_VIEW.pos.clone(), HOME_VIEW.target.clone());
+  const c = roomCenter(id);
+  flyTo(c.clone().add(new THREE.Vector3(0, 6.2, 5.2)), c);
+}
+function viewAppliance(a){
+  const c = roomCenter(a.room);
+  const dir = new THREE.Vector3(c.x - a.world.x, 0, c.z - a.world.z);
+  if (dir.lengthSq() < 0.01) dir.set(0,0,1);
+  dir.normalize();
+  const dist = 3.2 + Math.max(...a.size)*1.6;
+  flyTo(a.world.clone().add(dir.multiplyScalar(dist)).add(new THREE.Vector3(0, 2.8, 0)), a.world.clone());
+}
+camera.position.copy(HOME_VIEW.pos);
+controls.target.copy(HOME_VIEW.target);
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h;
+  // pull back on narrow screens so the whole flat fits
+  camera.fov = w/h < 1 ? 52 : 38;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+/* ---------- PINS ---------- */
+const pinLayer = document.getElementById('pins');
+for (const a of APPLIANCES){
+  const b = document.createElement('button');
+  b.className = 'pin';
+  b.innerHTML = `<span class="dot">${a.n}</span><span class="tag">${a.name}</span>`;
+  b.setAttribute('aria-label', `${a.name}, ${roomById[a.room].name}`);
+  b.addEventListener('click', e=>{ e.stopPropagation(); select(a.id); });
+  pinLayer.appendChild(b);
+  a.pin = b;
+}
+const v = new THREE.Vector3();
+function placePins(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  for (const a of APPLIANCES){
+    v.copy(a.pinAt).project(camera);
+    const hidden = v.z > 1;
+    a.pin.hidden = hidden;
+    if (!hidden) a.pin.style.transform = `translate(${(v.x*.5+.5)*w}px, ${(-v.y*.5+.5)*h}px) translate(-11px,-100%)`;
+  }
+}
+function refreshPins(){
+  for (const a of APPLIANCES){
+    a.pin.classList.toggle('on', a.id===selectedId);
+    a.pin.classList.toggle('dim', roomFilter!=='all' && a.room!==roomFilter && a.id!==selectedId);
+    const on = a.id===selectedId, hov = a.id===hoverId;
+    a.mesh.material.emissive.set(on ? (isDark()?0x2a4aa8:0x1f56e0) : hov ? 0x444444 : 0x000000);
+    a.mesh.material.emissiveIntensity = on ? 0.28 : 0.3;
+  }
+}
+
+/* ---------- PICKING ---------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let hoverId = null, downAt = null;
+function hit(e){
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(pickables)[0];
+  return h ? h.object.userData.id : null;
+}
+canvas.addEventListener('pointermove', e=>{
+  if (e.pointerType!=='mouse') return;
+  const id = hit(e);
+  if (id!==hoverId){ hoverId=id; canvas.classList.toggle('hovering', !!id); refreshPins(); }
+});
+canvas.addEventListener('pointerdown', e=>{ downAt=[e.clientX,e.clientY]; tween=null; });
+canvas.addEventListener('pointerup', e=>{
+  if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 6) return;
+  const id = hit(e);
+  if (id) select(id);
+});
+
+/* ---------- PANEL ---------- */
+const panel = document.getElementById('panel');
+const esc = s => s.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+document.getElementById('count').textContent = `${APPLIANCES.length} appliances · ${HOME.rooms.length} rooms`;
+
+const chips = document.getElementById('chips');
+function renderChips(){
+  chips.innerHTML = '';
+  for (const r of [{id:'all',name:'Whole home'}, ...HOME.rooms]){
+    const b = document.createElement('button');
+    b.className='chip'; b.textContent=r.name;
+    b.setAttribute('aria-pressed', String(roomFilter===r.id));
+    b.onclick = ()=>{ roomFilter=r.id; selectedId=null; setHash(''); renderChips(); renderList(); refreshPins(); viewRoom(r.id); };
+    chips.appendChild(b);
+  }
+}
+
+function renderList(){
+  const q = query.trim().toLowerCase();
+  const rooms = HOME.rooms.filter(r=>roomFilter==='all'||r.id===roomFilter);
+  let groups = '';
+  for (const r of rooms){
+    const items = APPLIANCES.filter(a=>a.room===r.id && (!q || (a.name+' '+a.summary).toLowerCase().includes(q)));
+    if (!items.length) continue;
+    groups += `<div class="group"><h3><span>${r.name}</span><span>${items.length}</span></h3>` +
+      items.map(a=>`<button class="row" data-id="${a.id}"><span class="n">${a.n}</span><span><div>${esc(a.name)}</div><div class="s">${esc(modelOf(a) || a.steps.length+' checks')}</div></span><span class="go">›</span></button>`).join('') + `</div>`;
+  }
+  panel.innerHTML = `<div class="pad">
+    <div><div class="eyebrow">${esc(HOME.name)}</div>
+    <h2>What stopped working?</h2></div>
+    <p class="lede">Tap the appliance in the 3D map or pick it below. Each one opens the checks to try first, the common faults, and when to call someone.</p>
+    <input class="search" id="q" type="search" placeholder="Search appliances, e.g. no sound" value="${esc(query)}" aria-label="Search appliances">
+    ${groups || '<p class="empty">Nothing matches that search. Try the appliance name, like "fridge".</p>'}
+  </div>`;
+  const qi = panel.querySelector('#q');
+  qi.addEventListener('input', ()=>{ query=qi.value; renderList(); const n=panel.querySelector('#q'); n.focus(); n.setSelectionRange(n.value.length,n.value.length); });
+  panel.querySelectorAll('.row').forEach(b=>b.onclick=()=>select(b.dataset.id));
+}
+
+const modelOf = a => store.get('model:'+a.id) || '';
+
+function renderDetail(a){
+  const model = modelOf(a);
+  const manualQ = encodeURIComponent((model ? model+' ' : a.name+' ') + 'manual');
+  panel.innerHTML = `<div class="pad">
+    <button class="back" id="back">‹ All appliances</button>
+    <div><div class="eyebrow">${roomById[a.room].name} · No. ${a.n}</div><h2>${esc(a.name)}</h2></div>
+    <p class="lede">${esc(a.summary)}</p>
+    <div class="model"><label for="model">Model number</label>
+      <input id="model" placeholder="From the sticker, e.g. QE55Q60B" value="${esc(model)}"></div>
+    <section class="block"><h4>Start here</h4>
+      <ol class="steps">${a.steps.map((s,i)=>`<li><label><input type="checkbox" id="st-${a.id}-${i}"><span class="box" aria-hidden="true"></span><span>${esc(s)}</span></label></li>`).join('')}</ol>
+      <div class="progress" id="prog">0 of ${a.steps.length} tried</div>
+    </section>
+    <section class="block"><h4>If you see…</h4>
+      <div>${a.issues.map(([s,f])=>`<details><summary>${esc(s)}</summary><p>${esc(f)}</p></details>`).join('')}</div>
+    </section>
+    <div class="pro"><strong>Call a pro if</strong>${esc(a.pro)}</div>
+    <a class="link" id="manual" href="https://www.google.com/search?q=${manualQ}" target="_blank" rel="noopener">Find the manual${model?' for '+esc(model):''} ↗</a>
+    <a class="link" href="https://www.google.com/search?q=${encodeURIComponent(a.query)}" target="_blank" rel="noopener">Search this problem online ↗</a>
+  </div>`;
+  panel.scrollTop = 0;
+  panel.querySelector('#back').onclick = ()=>{ selectedId=null; setHash(''); renderList(); refreshPins(); viewRoom(roomFilter); };
+  const mi = panel.querySelector('#model');
+  mi.addEventListener('input', ()=>{
+    store.set('model:'+a.id, mi.value.trim());
+    const m = mi.value.trim();
+    const l = panel.querySelector('#manual');
+    l.href = 'https://www.google.com/search?q='+encodeURIComponent((m?m+' ':a.name+' ')+'manual');
+    l.textContent = 'Find the manual' + (m?' for '+m:'') + ' ↗';
+  });
+  const boxes = [...panel.querySelectorAll('ol.steps input')];
+  boxes.forEach(b=>b.addEventListener('change', ()=>{
+    const n = boxes.filter(x=>x.checked).length;
+    panel.querySelector('#prog').textContent = n===boxes.length ? 'All checks tried. If it still fails, see "Call a pro".' : `${n} of ${boxes.length} tried`;
+  }));
+}
+
+function select(id){
+  const a = APPLIANCES.find(x=>x.id===id);
+  if (!a) return;
+  selectedId = id;
+  setHash(id);
+  renderDetail(a);
+  refreshPins();
+  viewAppliance(a);
+}
+function setHash(id){
+  try{ history.replaceState(null,'', id ? '#'+id : location.pathname+location.search); }catch(e){}
+}
+addEventListener('hashchange', ()=>{ const id=location.hash.slice(1); if (id && id!==selectedId) select(id); });
+addEventListener('keydown', e=>{ if (e.key==='Escape' && selectedId) panel.querySelector('#back')?.click(); });
+
+renderChips();
+renderList();
+refreshPins();
+const startId = location.hash.slice(1);
+if (APPLIANCES.some(a=>a.id===startId)) select(startId);
+
+/* ---------- LOOP ---------- */
+const ease = t => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+function frame(now){
+  if (tween){
+    const t = Math.min(1,(now-tween.start)/tween.dur), k = ease(t);
+    camera.position.lerpVectors(tween.p0, tween.p1, k);
+    controls.target.lerpVectors(tween.t0, tween.t1, k);
+    if (t===1) tween=null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  placePins();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
