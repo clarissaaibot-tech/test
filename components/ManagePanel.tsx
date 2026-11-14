@@ -62,7 +62,7 @@ export function ManagePanel(props: { token: string; talentId: string; faceConsen
         <p className="hint" style={{ marginTop: 8 }}>
           {props.faceConsent
             ? "Switching this off deletes the stored analysis of your face. Your profile stays in the directory."
-            : "Switching this on analyses the facial features in your profile photo and stores the result, only so casting teams can find you by a similar-looking reference photo."}
+            : "Switching this on analyses the facial features in your profile photo and stores the result, only so people searching with a similar-looking reference photo can find you."}
         </p>
         <div className="actions">
           {props.faceConsent ? (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTalent, parseDescriptor } from "@/lib/db";
+import { INDUSTRIES, OPEN_TO } from "@/lib/site";
 
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -11,19 +12,31 @@ export async function POST(req: Request) {
   const text = (key: string, max: number) => String(form.get(key) ?? "").trim().slice(0, max);
 
   const name = text("name", 80);
+  const headline = text("headline", 100);
   const category = text("category", 40);
   const city = text("city", 60);
   const bio = text("bio", 600);
-  if (!name || !category || !city) return bad("Name, category and city are required.");
+  if (!name || !headline || !city) return bad("Name, role and city are required.");
+  if (!INDUSTRIES.includes(category)) return bad("Choose an industry.");
+
+  // Skills arrive comma-separated; keep up to 12 distinct ones.
+  const seen = new Set<string>();
+  const skills = text("skills", 400)
+    .split(",")
+    .map((s) => s.trim().slice(0, 30))
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+    .slice(0, 12);
+  if (skills.length === 0) return bad("Add at least one skill.");
+  const openTo = form.getAll("openTo").map(String).filter((v) => OPEN_TO.includes(v));
 
   if (form.get("confirmAdultOwnPhoto") !== "yes") {
     return bad("You must confirm you are 18 or older and that the photo is of you.");
   }
 
-  const heightRaw = text("heightCm", 5);
-  const heightCm = heightRaw ? Number(heightRaw) : null;
-  if (heightCm !== null && !(Number.isInteger(heightCm) && heightCm >= 100 && heightCm <= 230)) {
-    return bad("Height must be between 100 and 230 cm.");
+  const yearsRaw = text("yearsExp", 3);
+  const yearsExp = yearsRaw ? Number(yearsRaw) : null;
+  if (yearsExp !== null && !(Number.isInteger(yearsExp) && yearsExp >= 0 && yearsExp <= 60)) {
+    return bad("Years of experience must be between 0 and 60.");
   }
 
   const photo = form.get("photo");
@@ -45,9 +58,12 @@ export async function POST(req: Request) {
 
   const { id, token } = createTalent({
     name,
+    headline,
     category,
     city,
-    heightCm,
+    yearsExp,
+    skills,
+    openTo,
     bio,
     photo: Buffer.from(await photo.arrayBuffer()),
     photoExt,

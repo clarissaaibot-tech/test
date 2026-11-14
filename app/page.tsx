@@ -1,44 +1,83 @@
 import Link from "next/link";
 import { listTalents } from "@/lib/db";
 import { TalentCard } from "@/components/TalentCard";
+import { INDUSTRIES, SITE_TAGLINE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const talents = listTalents();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; industry?: string; city?: string }>;
+}) {
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim().slice(0, 80);
+  const city = (sp.city ?? "").trim().slice(0, 60);
+  const industry = INDUSTRIES.includes(sp.industry ?? "") ? (sp.industry as string) : "";
+  const filtered = Boolean(q || city || industry);
+  const talents = listTalents({ q, city, industry });
+
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">Casting, with consent</p>
-        <h1>Find the face the role needs.</h1>
+        <p className="eyebrow">{SITE_TAGLINE}</p>
+        <h1>Find the right talent, faster.</h1>
         <p className="lede">
-          Browse talents who registered themselves, or upload a reference photo to find the
-          people here who look most like it.
+          Search professionals by skill, role and city. Every profile is created by the talent
+          themselves.
         </p>
-        <div className="hero-actions">
-          <Link href="/search" className="btn">
-            Find a lookalike
-          </Link>
-          <Link href="/join" className="btn ghost">
-            Join as talent
-          </Link>
-        </div>
+        <form className="searchbar" action="/" role="search">
+          <label className="field grow">
+            <span>Skill, role or name</span>
+            <input type="text" name="q" defaultValue={q} placeholder="e.g. Figma, product designer" />
+          </label>
+          <label className="field">
+            <span>Industry</span>
+            <select name="industry" defaultValue={industry}>
+              <option value="">Any</option>
+              {INDUSTRIES.map((i) => (
+                <option key={i}>{i}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>City</span>
+            <input type="text" name="city" defaultValue={city} placeholder="Kuala Lumpur" />
+          </label>
+          <button className="btn" type="submit">
+            Search
+          </button>
+        </form>
       </section>
 
       <div className="section-head">
-        <h2>Talents</h2>
+        <h2>{filtered ? "Results" : "Talents"}</h2>
         <span className="count">
           {talents.length} {talents.length === 1 ? "profile" : "profiles"}
+          {filtered && (
+            <>
+              {" · "}
+              <Link href="/">Clear search</Link>
+            </>
+          )}
         </span>
       </div>
       {talents.length === 0 ? (
         <div className="empty">
-          No talents yet. <Link href="/join">Create the first profile</Link>.
+          {filtered ? (
+            <>
+              No talents match that search. <Link href="/">See everyone</Link>.
+            </>
+          ) : (
+            <>
+              No talents yet. <Link href="/join">Create the first profile</Link>.
+            </>
+          )}
         </div>
       ) : (
         <div className="grid">
           {talents.map((t) => (
-            <TalentCard key={t.id} id={t.id} name={t.name} category={t.category} city={t.city} />
+            <TalentCard key={t.id} id={t.id} name={t.name} headline={t.headline} city={t.city} skills={t.skills} />
           ))}
         </div>
       )}

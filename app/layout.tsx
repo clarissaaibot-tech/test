@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: SITE_NAME,
-  description: "A talent directory with opt-in lookalike search.",
+  description: "TAB connects talents and employers. Every profile is created by the talent.",
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav className="site-nav">
               <Link href="/">Talents</Link>
-              <Link href="/search">Find a lookalike</Link>
+              <Link href="/search">Lookalike search</Link>
               <Link href="/join" className="cta">
                 Join as talent
               </Link>

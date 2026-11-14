@@ -12,22 +12,36 @@ export default async function TalentPage({ params }: { params: Promise<{ id: str
   return (
     <div className="profile">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="portrait" src={`/api/photos/${talent.id}`} alt={`Portrait of ${talent.name}`} />
+      <img className="portrait" src={`/api/photos/${talent.id}`} alt={`Photo of ${talent.name}`} />
       <div>
         <p className="eyebrow">{talent.category}</p>
         <h1>{talent.name}</h1>
+        <p className="lede">{talent.headline}</p>
         <dl className="facts">
           <div>
             <dt>Based in</dt>
             <dd>{talent.city}</dd>
           </div>
-          {talent.height_cm && (
+          {talent.years_exp !== null && (
             <div>
-              <dt>Height</dt>
-              <dd>{talent.height_cm} cm</dd>
+              <dt>Experience</dt>
+              <dd>
+                {talent.years_exp} {talent.years_exp === 1 ? "year" : "years"}
+              </dd>
+            </div>
+          )}
+          {talent.open_to.length > 0 && (
+            <div>
+              <dt>Open to</dt>
+              <dd>{talent.open_to.join(", ")}</dd>
             </div>
           )}
         </dl>
+        <div className="chips" style={{ marginBottom: 20 }}>
+          {talent.skills.map((s) => (
+            <span key={s}>{s}</span>
+          ))}
+        </div>
         {talent.bio && <p className="bio">{talent.bio}</p>}
         <h2>Send an inquiry</h2>
         <p className="hint">

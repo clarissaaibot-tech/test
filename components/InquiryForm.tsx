@@ -48,7 +48,7 @@ export function InquiryForm({ talentId, talentName }: { talentId: string; talent
       </div>
       <label className="field">
         <span>Message</span>
-        <textarea name="message" required maxLength={1500} placeholder="Project, dates, rate…" />
+        <textarea name="message" required maxLength={1500} placeholder="Role, company, what you have in mind…" />
       </label>
       {error && (
         <div className="notice error" role="alert">

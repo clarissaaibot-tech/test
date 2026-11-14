@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { describeFace, FaceError } from "@/lib/face";
-import { CATEGORIES } from "@/lib/site";
+import { INDUSTRIES, OPEN_TO } from "@/lib/site";
 
 export default function JoinPage() {
   const [photo, setPhoto] = useState<File | null>(null);
@@ -75,7 +75,7 @@ export default function JoinPage() {
       <p className="eyebrow">For talents</p>
       <h1>Create your profile.</h1>
       <p className="lede">
-        You decide what casting teams see. Contact details stay private; inquiries reach you
+        You decide what employers see. Contact details stay private; inquiries reach you
         through the platform.
       </p>
 
@@ -84,14 +84,18 @@ export default function JoinPage() {
           <span>Name</span>
           <input type="text" name="name" required maxLength={80} autoComplete="name" />
         </label>
+        <label className="field">
+          <span>Current or target role</span>
+          <input type="text" name="headline" required maxLength={100} placeholder="Product Designer" />
+        </label>
         <div className="row">
           <label className="field">
-            <span>Category</span>
+            <span>Industry</span>
             <select name="category" required defaultValue="">
               <option value="" disabled>
                 Choose one
               </option>
-              {CATEGORIES.map((c) => (
+              {INDUSTRIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
@@ -102,16 +106,31 @@ export default function JoinPage() {
           </label>
         </div>
         <label className="field">
-          <span>
-            Height in cm <small>(optional)</small>
-          </span>
-          <input type="number" name="heightCm" min={100} max={230} inputMode="numeric" />
+          <span>Skills</span>
+          <input type="text" name="skills" required maxLength={400} placeholder="Figma, user research, prototyping" />
+          <small>Separate with commas, up to 12.</small>
         </label>
+        <label className="field">
+          <span>
+            Years of experience <small>(optional)</small>
+          </span>
+          <input type="number" name="yearsExp" min={0} max={60} inputMode="numeric" />
+        </label>
+        <fieldset className="field options">
+          <legend className="label">
+            Open to <small className="hint">(optional)</small>
+          </legend>
+          {OPEN_TO.map((o) => (
+            <label key={o}>
+              <input type="checkbox" name="openTo" value={o} /> {o}
+            </label>
+          ))}
+        </fieldset>
         <label className="field">
           <span>
             About you <small>(optional)</small>
           </span>
-          <textarea name="bio" maxLength={600} placeholder="Experience, languages, skills…" />
+          <textarea name="bio" maxLength={600} placeholder="Projects, achievements, what you want next…" />
         </label>
 
         <div className="field">
@@ -146,8 +165,8 @@ export default function JoinPage() {
             </strong>
             <span className="hint">
               I agree that the platform analyses the facial features in my photo and stores the
-              result, only so casting teams can find me when they search with a similar-looking
-              reference photo. It is not used for anything else or shared. I can switch this off
+              result, only so people searching with a similar-looking
+              reference photo can find me. It is not used for anything else or shared. I can switch this off
               at any time, which deletes the stored face data. My profile works either way.
             </span>
           </span>

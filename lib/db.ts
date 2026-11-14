@@ -9,9 +9,12 @@ export const UPLOAD_DIR = join(DATA_DIR, "uploads");
 export type Talent = {
   id: string;
   name: string;
+  headline: string;
   category: string;
   city: string;
-  height_cm: number | null;
+  years_exp: number | null;
+  skills: string[];
+  open_to: string[];
   bio: string;
   photo_file: string;
   created_at: string;
@@ -19,10 +22,8 @@ export type Talent = {
   face_consent_at: string | null;
 };
 
-type TalentRow = Talent & { embedding: string | null };
-
 const PUBLIC_COLS =
-  "id, name, category, city, height_cm, bio, photo_file, created_at, face_consent, face_consent_at";
+  "id, name, headline, category, city, years_exp, skills, open_to, bio, photo_file, created_at, face_consent, face_consent_at";
 
 const g = globalThis as unknown as { __talentDb?: DatabaseSync };
 
@@ -36,9 +37,12 @@ function db(): DatabaseSync {
         id TEXT PRIMARY KEY,
         token_hash TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
+        headline TEXT NOT NULL,
         category TEXT NOT NULL,
         city TEXT NOT NULL,
-        height_cm INTEGER,
+        years_exp INTEGER,
+        skills TEXT NOT NULL DEFAULT '[]',
+        open_to TEXT NOT NULL DEFAULT '[]',
         bio TEXT NOT NULL DEFAULT '',
         photo_file TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -61,6 +65,14 @@ function db(): DatabaseSync {
   return g.__talentDb;
 }
 
+type RawTalent = Omit<Talent, "skills" | "open_to"> & { skills: string; open_to: string };
+
+/** Skills and open-to lists are stored as JSON text. */
+function hydrate<T extends RawTalent>(row: T | undefined): (Omit<T, "skills" | "open_to"> & Pick<Talent, "skills" | "open_to">) | null {
+  if (!row) return null;
+  return { ...row, skills: JSON.parse(row.skills), open_to: JSON.parse(row.open_to) };
+}
+
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 /** A face descriptor is exactly 128 finite numbers. Anything else is rejected. */
@@ -72,9 +84,12 @@ export function parseDescriptor(value: unknown): number[] | null {
 
 export function createTalent(input: {
   name: string;
+  headline: string;
   category: string;
   city: string;
-  heightCm: number | null;
+  yearsExp: number | null;
+  skills: string[];
+  openTo: string[];
   bio: string;
   photo: Buffer;
   photoExt: string;
@@ -88,16 +103,19 @@ export function createTalent(input: {
   writeFileSync(join(UPLOAD_DIR, photoFile), input.photo);
   db()
     .prepare(
-      `INSERT INTO talents (id, token_hash, name, category, city, height_cm, bio, photo_file, created_at, face_consent, face_consent_at, embedding)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO talents (id, token_hash, name, headline, category, city, years_exp, skills, open_to, bio, photo_file, created_at, face_consent, face_consent_at, embedding)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
       hashToken(token),
       input.name,
+      input.headline,
       input.category,
       input.city,
-      input.heightCm,
+      input.yearsExp,
+      JSON.stringify(input.skills),
+      JSON.stringify(input.openTo),
       input.bio,
       photoFile,
       now,
@@ -108,24 +126,44 @@ export function createTalent(input: {
   return { id, token };
 }
 
-export function listTalents(): Talent[] {
-  return db()
-    .prepare(`SELECT ${PUBLIC_COLS} FROM talents ORDER BY created_at DESC`)
-    .all() as unknown as Talent[];
+/** Keyword matches name, headline, skills or bio; industry and city narrow the list. */
+export function listTalents(filter: { q?: string; industry?: string; city?: string } = {}): Talent[] {
+  const where: string[] = [];
+  const args: string[] = [];
+  const like = (v: string) => `%${v.replace(/[\\%_]/g, "\\$&")}%`;
+  if (filter.q) {
+    where.push(
+      `(name LIKE ? ESCAPE '\\' OR headline LIKE ? ESCAPE '\\' OR skills LIKE ? ESCAPE '\\' OR bio LIKE ? ESCAPE '\\')`
+    );
+    args.push(like(filter.q), like(filter.q), like(filter.q), like(filter.q));
+  }
+  if (filter.industry) {
+    where.push(`category = ?`);
+    args.push(filter.industry);
+  }
+  if (filter.city) {
+    where.push(`city LIKE ? ESCAPE '\\'`);
+    args.push(like(filter.city));
+  }
+  const rows = db()
+    .prepare(
+      `SELECT ${PUBLIC_COLS} FROM talents ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC`
+    )
+    .all(...args) as unknown as RawTalent[];
+  return rows.map((r) => hydrate(r) as Talent);
 }
 
 export function getTalent(id: string): Talent | null {
-  return (
-    (db().prepare(`SELECT ${PUBLIC_COLS} FROM talents WHERE id = ?`).get(id) as unknown as Talent) ??
-    null
+  return hydrate(
+    db().prepare(`SELECT ${PUBLIC_COLS} FROM talents WHERE id = ?`).get(id) as unknown as RawTalent
   );
 }
 
 export function getTalentByToken(token: string): Talent | null {
-  return (
-    (db()
+  return hydrate(
+    db()
       .prepare(`SELECT ${PUBLIC_COLS} FROM talents WHERE token_hash = ?`)
-      .get(hashToken(token)) as unknown as Talent) ?? null
+      .get(hashToken(token)) as unknown as RawTalent
   );
 }
 
@@ -166,10 +204,11 @@ export function findLookalikes(query: number[], limit = 12): Match[] {
     .prepare(
       `SELECT ${PUBLIC_COLS}, embedding FROM talents WHERE face_consent = 1 AND embedding IS NOT NULL`
     )
-    .all() as unknown as TalentRow[];
+    .all() as unknown as (RawTalent & { embedding: string })[];
   return rows
-    .map(({ embedding, ...talent }) => {
-      const e = JSON.parse(embedding as string) as number[];
+    .map(({ embedding, ...raw }) => {
+      const talent = hydrate(raw) as Talent;
+      const e = JSON.parse(embedding) as number[];
       let sum = 0;
       for (let i = 0; i < 128; i++) sum += (e[i] - query[i]) ** 2;
       const distance = Math.sqrt(sum);

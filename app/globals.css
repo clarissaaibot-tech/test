@@ -137,3 +137,21 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--ink); outli
 .site-footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 0.86rem; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Search bar */
+.searchbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 28px; }
+.searchbar .field { flex: 1 1 160px; }
+.searchbar .field.grow { flex: 2 1 260px; }
+.searchbar .btn { flex: none; height: 46px; }
+
+/* Skill chips */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { font-size: 0.85rem; padding: 4px 11px; border-radius: 999px; background: #ebe4d8; }
+.chips.small { margin-top: 8px; }
+.chips.small span { font-size: 0.76rem; padding: 2px 9px; }
+
+.options { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.options legend { padding: 0; margin-bottom: 6px; }
+.options label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+.options input { width: 18px; height: 18px; accent-color: var(--ink); }
+.searchbar input, .searchbar select { height: 46px; }

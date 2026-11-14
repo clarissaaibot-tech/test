@@ -3,20 +3,26 @@ import Link from "next/link";
 export function TalentCard(props: {
   id: string;
   name: string;
-  category: string;
+  headline: string;
   city: string;
+  skills: string[];
   score?: number;
 }) {
   return (
     <Link href={`/talent/${props.id}`} className="card">
       <div className="photo">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/api/photos/${props.id}`} alt={`Portrait of ${props.name}`} loading="lazy" />
+        <img src={`/api/photos/${props.id}`} alt={`Photo of ${props.name}`} loading="lazy" />
         {props.score !== undefined && <span className="score">{props.score}% similar</span>}
       </div>
       <div className="name">{props.name}</div>
       <div className="meta">
-        {props.category} · {props.city}
+        {props.headline} · {props.city}
+      </div>
+      <div className="chips small">
+        {props.skills.slice(0, 3).map((s) => (
+          <span key={s}>{s}</span>
+        ))}
       </div>
     </Link>
   );

@@ -1,12 +1,12 @@
-# Talent Directory
+# TAB
 
-A talent platform MVP with opt-in lookalike (similar face) search.
+Talent Amplifies Business. An MVP of the talent platform: self-created professional profiles, skill search, and opt-in lookalike (similar face) search.
 
 ## What it does
 
-- **Join as talent** (`/join`): a talent creates their own profile with one photo. Face search is a separate, optional consent checkbox.
-- **Browse** (`/`): directory of all profiles.
-- **Find a lookalike** (`/search`): upload a reference photo and get the closest-looking talents, ranked. Only talents who opted in are searched.
+- **Join as talent** (`/join`): a talent creates their own profile: role, industry, city, skills, experience, what they are open to, and one photo. Face search is a separate, optional consent checkbox.
+- **Search** (`/`): find talents by skill, role or name, filtered by industry and city.
+- **Lookalike search** (`/search`): upload a reference photo and get the closest-looking talents, ranked. Only talents who opted in are searched.
 - **Profile** (`/talent/[id]`): public details plus an inquiry form. Contact details are never shown.
 - **Manage** (`/manage/[token]`): private link given once at sign-up. Switch face search on or off, read inquiries, delete the profile.
 
@@ -30,9 +30,8 @@ Open http://localhost:3000. Data is stored locally in `data/` (SQLite database a
 
 ## Not in this version
 
+- Employer accounts, job posts and employer verification.
 - Accounts and login (the private manage link stands in for them).
 - Proof that the photo is really the person signing up (for example a live selfie check).
 - Rate limiting and login for people who search.
 - Hosted storage. `data/` is a local folder, so deploying needs a hosted database and file storage first.
-
-The platform name is a placeholder; change it in `lib/site.ts`.

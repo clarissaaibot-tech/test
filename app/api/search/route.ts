@@ -9,7 +9,8 @@ export async function POST(req: Request) {
   const matches = findLookalikes(descriptor).map(({ talent, score }) => ({
     id: talent.id,
     name: talent.name,
-    category: talent.category,
+    headline: talent.headline,
+    skills: talent.skills,
     city: talent.city,
     score,
   }));
