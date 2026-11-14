@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createTalent, parseDescriptor } from "@/lib/db";
 import { INDUSTRIES, OPEN_TO } from "@/lib/site";
 
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+// The browser resizes photos to a small JPEG before upload.
+const MAX_PHOTO_BYTES = 1024 * 1024;
 
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 
@@ -41,9 +41,8 @@ export async function POST(req: Request) {
 
   const photo = form.get("photo");
   if (!(photo instanceof File) || photo.size === 0) return bad("A photo is required.");
-  const photoExt = EXT[photo.type];
-  if (!photoExt) return bad("Photo must be a JPG, PNG or WebP.");
-  if (photo.size > MAX_PHOTO_BYTES) return bad("Photo must be 5 MB or smaller.");
+  if (photo.type !== "image/jpeg") return bad("Photo must be a JPG.");
+  if (photo.size > MAX_PHOTO_BYTES) return bad("Photo is too large.");
 
   // The face descriptor is stored only when the talent ticked the separate face-search consent.
   let descriptor: number[] | null = null;
@@ -56,7 +55,7 @@ export async function POST(req: Request) {
     if (!descriptor) return bad("Face search was selected but no valid face data was sent.");
   }
 
-  const { id, token } = createTalent({
+  const { id, token } = await createTalent({
     name,
     headline,
     category,
@@ -65,8 +64,7 @@ export async function POST(req: Request) {
     skills,
     openTo,
     bio,
-    photo: Buffer.from(await photo.arrayBuffer()),
-    photoExt,
+    photoBase64: Buffer.from(await photo.arrayBuffer()).toString("base64"),
     descriptor,
   });
   return NextResponse.json({ id, token });

@@ -16,17 +16,17 @@ Talent Amplifies Business. An MVP of the talent platform: self-created professio
 - Face data (a 128-number descriptor) is stored only with explicit consent, and deleted when consent is withdrawn or the profile is deleted.
 - Face analysis runs in the browser. A search reference photo never leaves the device and nothing from a search is stored.
 - Photos must contain exactly one face.
+- Profiles marked "Sample" are fictional demo people with AI-generated photos.
 
 ## Run it
 
-Requires Node 22.13 or newer.
+Requires Node 20 or newer and a Supabase project.
 
-```bash
-npm install
-npm run dev
-```
+1. Run the SQL in `supabase/schema.sql` on the Supabase project.
+2. Create `.env.local` with `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the publishable key).
+3. `npm install`, then `npm run dev`, and open http://localhost:3000.
 
-Open http://localhost:3000. Data is stored locally in `data/` (SQLite database and uploaded photos).
+The tables have row level security with no policies; the app reads and writes only through the `tab_*` database functions.
 
 ## Not in this version
 
@@ -34,4 +34,3 @@ Open http://localhost:3000. Data is stored locally in `data/` (SQLite database a
 - Accounts and login (the private manage link stands in for them).
 - Proof that the photo is really the person signing up (for example a live selfie check).
 - Rate limiting and login for people who search.
-- Hosted storage. `data/` is a local folder, so deploying needs a hosted database and file storage first.

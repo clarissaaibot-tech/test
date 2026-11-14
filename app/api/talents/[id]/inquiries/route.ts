@@ -3,7 +3,7 @@ import { addInquiry, getTalent } from "@/lib/db";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!getTalent(id)) return NextResponse.json({ error: "Talent not found." }, { status: 404 });
+  if (!(await getTalent(id))) return NextResponse.json({ error: "Talent not found." }, { status: 404 });
   const body = await req.json().catch(() => null);
   const fromName = String(body?.fromName ?? "").trim().slice(0, 80);
   const fromEmail = String(body?.fromEmail ?? "").trim().slice(0, 120);
@@ -14,6 +14,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 400 }
     );
   }
-  addInquiry(id, fromName, fromEmail, message);
+  await addInquiry(id, fromName, fromEmail, message);
   return NextResponse.json({ ok: true });
 }

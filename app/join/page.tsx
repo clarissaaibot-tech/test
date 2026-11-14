@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PhotoPicker } from "@/components/PhotoPicker";
-import { describeFace, FaceError } from "@/lib/face";
+import { describeFace, FaceError, resizePhoto } from "@/lib/face";
 import { INDUSTRIES, OPEN_TO } from "@/lib/site";
 
 export default function JoinPage() {
@@ -21,8 +21,8 @@ export default function JoinPage() {
       setError("Add a photo of yourself to continue.");
       return;
     }
-    form.set("photo", photo);
     try {
+      form.set("photo", await resizePhoto(photo));
       if (faceConsent) {
         setBusy("Reading your photo…");
         form.set("descriptor", JSON.stringify(await describeFace(photo)));
@@ -139,7 +139,7 @@ export default function JoinPage() {
             file={photo}
             onChange={setPhoto}
             title="Choose a photo"
-            hint="Clear, front-facing, just you. JPG, PNG or WebP up to 5 MB."
+            hint="Clear, front-facing, just you. JPG, PNG or WebP."
           />
         </div>
 

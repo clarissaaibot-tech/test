@@ -7,12 +7,14 @@ export function TalentCard(props: {
   city: string;
   skills: string[];
   score?: number;
+  isSample?: boolean;
 }) {
   return (
     <Link href={`/talent/${props.id}`} className="card">
       <div className="photo">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={`/api/photos/${props.id}`} alt={`Photo of ${props.name}`} loading="lazy" />
+        {props.isSample && <span className="sample">Sample</span>}
         {props.score !== undefined && <span className="score">{props.score}% similar</span>}
       </div>
       <div className="name">{props.name}</div>

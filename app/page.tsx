@@ -15,7 +15,7 @@ export default async function Home({
   const city = (sp.city ?? "").trim().slice(0, 60);
   const industry = INDUSTRIES.includes(sp.industry ?? "") ? (sp.industry as string) : "";
   const filtered = Boolean(q || city || industry);
-  const talents = listTalents({ q, city, industry });
+  const talents = await listTalents({ q, city, industry });
 
   return (
     <>
@@ -77,7 +77,7 @@ export default async function Home({
       ) : (
         <div className="grid">
           {talents.map((t) => (
-            <TalentCard key={t.id} id={t.id} name={t.name} headline={t.headline} city={t.city} skills={t.skills} />
+            <TalentCard key={t.id} id={t.id} name={t.name} headline={t.headline} city={t.city} skills={t.skills} isSample={t.is_sample} />
           ))}
         </div>
       )}

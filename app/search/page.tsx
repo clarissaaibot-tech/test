@@ -6,7 +6,7 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { TalentCard } from "@/components/TalentCard";
 import { describeFace, FaceError } from "@/lib/face";
 
-type Match = { id: string; name: string; headline: string; city: string; skills: string[]; score: number };
+type Match = { id: string; name: string; headline: string; city: string; skills: string[]; score: number; isSample: boolean };
 
 export default function SearchPage() {
   const [photo, setPhoto] = useState<File | null>(null);

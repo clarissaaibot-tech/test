@@ -8,9 +8,9 @@ export const metadata = { robots: { index: false } };
 
 export default async function ManagePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const talent = getTalentByToken(token);
+  const talent = await getTalentByToken(token);
   if (!talent) notFound();
-  const inquiries = listInquiries(talent.id);
+  const inquiries = await listInquiries(token);
 
   return (
     <div className="narrow">
@@ -22,7 +22,7 @@ export default async function ManagePage({ params }: { params: Promise<{ token: 
       </p>
 
       <div style={{ marginTop: 28 }}>
-        <ManagePanel token={token} talentId={talent.id} faceConsent={talent.face_consent === 1} />
+        <ManagePanel token={token} talentId={talent.id} faceConsent={talent.face_consent} />
       </div>
 
       <div className="panel" style={{ marginTop: 18 }}>

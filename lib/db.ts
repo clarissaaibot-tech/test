@@ -1,10 +1,8 @@
-import { DatabaseSync } from "node:sqlite";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createHash, randomBytes } from "node:crypto";
 
-export const DATA_DIR = join(process.cwd(), "data");
-export const UPLOAD_DIR = join(DATA_DIR, "uploads");
+// All data lives in Supabase. The tables have row level security with no policies,
+// so every read and write goes through the tab_* database functions called here.
 
 export type Talent = {
   id: string;
@@ -16,64 +14,33 @@ export type Talent = {
   skills: string[];
   open_to: string[];
   bio: string;
-  photo_file: string;
+  is_sample: boolean;
   created_at: string;
-  face_consent: number;
+  face_consent: boolean;
   face_consent_at: string | null;
 };
 
-const PUBLIC_COLS =
-  "id, name, headline, category, city, years_exp, skills, open_to, bio, photo_file, created_at, face_consent, face_consent_at";
+let client: SupabaseClient | null = null;
 
-const g = globalThis as unknown as { __talentDb?: DatabaseSync };
-
-function db(): DatabaseSync {
-  if (!g.__talentDb) {
-    mkdirSync(UPLOAD_DIR, { recursive: true });
-    const d = new DatabaseSync(join(DATA_DIR, "app.db"));
-    d.exec(`
-      PRAGMA journal_mode = WAL;
-      CREATE TABLE IF NOT EXISTS talents (
-        id TEXT PRIMARY KEY,
-        token_hash TEXT NOT NULL UNIQUE,
-        name TEXT NOT NULL,
-        headline TEXT NOT NULL,
-        category TEXT NOT NULL,
-        city TEXT NOT NULL,
-        years_exp INTEGER,
-        skills TEXT NOT NULL DEFAULT '[]',
-        open_to TEXT NOT NULL DEFAULT '[]',
-        bio TEXT NOT NULL DEFAULT '',
-        photo_file TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        face_consent INTEGER NOT NULL DEFAULT 0,
-        face_consent_at TEXT,
-        embedding TEXT
-      );
-      CREATE TABLE IF NOT EXISTS inquiries (
-        id TEXT PRIMARY KEY,
-        talent_id TEXT NOT NULL REFERENCES talents(id) ON DELETE CASCADE,
-        from_name TEXT NOT NULL,
-        from_email TEXT NOT NULL,
-        message TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      PRAGMA foreign_keys = ON;
-    `);
-    g.__talentDb = d;
+function supabase(): SupabaseClient {
+  if (!client) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY must be set.");
+    client = createClient(url, key, { auth: { persistSession: false } });
   }
-  return g.__talentDb;
+  return client;
 }
 
-type RawTalent = Omit<Talent, "skills" | "open_to"> & { skills: string; open_to: string };
-
-/** Skills and open-to lists are stored as JSON text. */
-function hydrate<T extends RawTalent>(row: T | undefined): (Omit<T, "skills" | "open_to"> & Pick<Talent, "skills" | "open_to">) | null {
-  if (!row) return null;
-  return { ...row, skills: JSON.parse(row.skills), open_to: JSON.parse(row.open_to) };
+async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase().rpc(fn, args);
+  if (error) throw new Error(`${fn} failed: ${error.message}`);
+  return data as T;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A face descriptor is exactly 128 finite numbers. Anything else is rejected. */
 export function parseDescriptor(value: unknown): number[] | null {
@@ -82,7 +49,7 @@ export function parseDescriptor(value: unknown): number[] | null {
   return value as number[];
 }
 
-export function createTalent(input: {
+export async function createTalent(input: {
   name: string;
   headline: string;
   category: string;
@@ -91,131 +58,82 @@ export function createTalent(input: {
   skills: string[];
   openTo: string[];
   bio: string;
-  photo: Buffer;
-  photoExt: string;
+  photoBase64: string;
   descriptor: number[] | null;
-}): { id: string; token: string } {
-  const id = randomUUID();
+}): Promise<{ id: string; token: string }> {
   const token = randomBytes(24).toString("base64url");
-  const photoFile = `${id}.${input.photoExt}`;
-  const now = new Date().toISOString();
-  mkdirSync(UPLOAD_DIR, { recursive: true });
-  writeFileSync(join(UPLOAD_DIR, photoFile), input.photo);
-  db()
-    .prepare(
-      `INSERT INTO talents (id, token_hash, name, headline, category, city, years_exp, skills, open_to, bio, photo_file, created_at, face_consent, face_consent_at, embedding)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      id,
-      hashToken(token),
-      input.name,
-      input.headline,
-      input.category,
-      input.city,
-      input.yearsExp,
-      JSON.stringify(input.skills),
-      JSON.stringify(input.openTo),
-      input.bio,
-      photoFile,
-      now,
-      input.descriptor ? 1 : 0,
-      input.descriptor ? now : null,
-      input.descriptor ? JSON.stringify(input.descriptor) : null
-    );
+  const id = await rpc<string>("tab_create_talent", {
+    p_token_hash: hashToken(token),
+    p_name: input.name,
+    p_headline: input.headline,
+    p_category: input.category,
+    p_city: input.city,
+    p_years_exp: input.yearsExp,
+    p_skills: input.skills,
+    p_open_to: input.openTo,
+    p_bio: input.bio,
+    p_photo: input.photoBase64,
+    p_embedding: input.descriptor,
+  });
   return { id, token };
 }
 
 /** Keyword matches name, headline, skills or bio; industry and city narrow the list. */
-export function listTalents(filter: { q?: string; industry?: string; city?: string } = {}): Talent[] {
-  const where: string[] = [];
-  const args: string[] = [];
-  const like = (v: string) => `%${v.replace(/[\\%_]/g, "\\$&")}%`;
-  if (filter.q) {
-    where.push(
-      `(name LIKE ? ESCAPE '\\' OR headline LIKE ? ESCAPE '\\' OR skills LIKE ? ESCAPE '\\' OR bio LIKE ? ESCAPE '\\')`
-    );
-    args.push(like(filter.q), like(filter.q), like(filter.q), like(filter.q));
-  }
-  if (filter.industry) {
-    where.push(`category = ?`);
-    args.push(filter.industry);
-  }
-  if (filter.city) {
-    where.push(`city LIKE ? ESCAPE '\\'`);
-    args.push(like(filter.city));
-  }
-  const rows = db()
-    .prepare(
-      `SELECT ${PUBLIC_COLS} FROM talents ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC`
-    )
-    .all(...args) as unknown as RawTalent[];
-  return rows.map((r) => hydrate(r) as Talent);
+export async function listTalents(
+  filter: { q?: string; industry?: string; city?: string } = {}
+): Promise<Talent[]> {
+  // Escape LIKE wildcards so a search for "100%" means the literal text.
+  const esc = (v = "") => v.replace(/[\\%_]/g, "\\$&");
+  return rpc<Talent[]>("tab_list_talents", {
+    p_q: esc(filter.q),
+    p_industry: filter.industry ?? "",
+    p_city: esc(filter.city),
+  });
 }
 
-export function getTalent(id: string): Talent | null {
-  return hydrate(
-    db().prepare(`SELECT ${PUBLIC_COLS} FROM talents WHERE id = ?`).get(id) as unknown as RawTalent
-  );
+export async function getTalent(id: string): Promise<Talent | null> {
+  if (!UUID.test(id)) return null;
+  return rpc<Talent | null>("tab_get_talent", { p_id: id });
 }
 
-export function getTalentByToken(token: string): Talent | null {
-  return hydrate(
-    db()
-      .prepare(`SELECT ${PUBLIC_COLS} FROM talents WHERE token_hash = ?`)
-      .get(hashToken(token)) as unknown as RawTalent
-  );
+export async function getPhoto(id: string): Promise<Buffer | null> {
+  if (!UUID.test(id)) return null;
+  const base64 = await rpc<string | null>("tab_get_photo", { p_id: id });
+  return base64 ? Buffer.from(base64, "base64") : null;
 }
 
-/** Turning consent off deletes the stored face descriptor, not just a flag. */
-export function setFaceConsent(id: string, descriptor: number[] | null) {
-  db()
-    .prepare(
-      `UPDATE talents SET face_consent = ?, face_consent_at = ?, embedding = ? WHERE id = ?`
-    )
-    .run(
-      descriptor ? 1 : 0,
-      descriptor ? new Date().toISOString() : null,
-      descriptor ? JSON.stringify(descriptor) : null,
-      id
-    );
+export async function getTalentByToken(token: string): Promise<Talent | null> {
+  return rpc<Talent | null>("tab_get_by_token", { p_token_hash: hashToken(token) });
 }
 
-export function deleteTalent(talent: Talent) {
-  const d = db();
-  d.prepare(`DELETE FROM inquiries WHERE talent_id = ?`).run(talent.id);
-  d.prepare(`DELETE FROM talents WHERE id = ?`).run(talent.id);
-  rmSync(join(UPLOAD_DIR, talent.photo_file), { force: true });
+/** Passing null withdraws consent, which deletes the stored face descriptor. */
+export async function setFaceConsent(token: string, descriptor: number[] | null): Promise<boolean> {
+  return rpc<boolean>("tab_set_face_consent", {
+    p_token_hash: hashToken(token),
+    p_embedding: descriptor,
+  });
 }
 
-export type Match = { talent: Talent; distance: number; score: number };
+export async function deleteTalent(token: string): Promise<boolean> {
+  return rpc<boolean>("tab_delete_talent", { p_token_hash: hashToken(token) });
+}
+
+export type Match = { talent: Talent; score: number };
 
 /**
- * Maps descriptor distance to a 0-100 display score. Two photos of the same person
- * usually sit under 0.5 (score 64+); unrelated faces sit around 0.8-1.0.
+ * Ranks only talents who opted in to face search. The score maps descriptor distance
+ * to 0-100: two photos of the same person usually sit under 0.5 (score 64+),
+ * unrelated faces around 0.8-1.0.
  */
-function similarityScore(distance: number): number {
-  return Math.round(Math.max(0, 1 - distance / 1.4) * 100);
-}
-
-/** Ranks only talents who opted in to face search, by Euclidean distance between descriptors. */
-export function findLookalikes(query: number[], limit = 12): Match[] {
-  const rows = db()
-    .prepare(
-      `SELECT ${PUBLIC_COLS}, embedding FROM talents WHERE face_consent = 1 AND embedding IS NOT NULL`
-    )
-    .all() as unknown as (RawTalent & { embedding: string })[];
-  return rows
-    .map(({ embedding, ...raw }) => {
-      const talent = hydrate(raw) as Talent;
-      const e = JSON.parse(embedding) as number[];
-      let sum = 0;
-      for (let i = 0; i < 128; i++) sum += (e[i] - query[i]) ** 2;
-      const distance = Math.sqrt(sum);
-      return { talent, distance, score: similarityScore(distance) };
-    })
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit);
+export async function findLookalikes(query: number[], limit = 12): Promise<Match[]> {
+  const rows = await rpc<(Talent & { distance: number })[]>("tab_find_lookalikes", {
+    p_embedding: query,
+    p_limit: limit,
+  });
+  return rows.map(({ distance, ...talent }) => ({
+    talent,
+    score: Math.round(Math.max(0, 1 - distance / 1.4) * 100),
+  }));
 }
 
 export type Inquiry = {
@@ -226,18 +144,15 @@ export type Inquiry = {
   created_at: string;
 };
 
-export function addInquiry(talentId: string, fromName: string, fromEmail: string, message: string) {
-  db()
-    .prepare(
-      `INSERT INTO inquiries (id, talent_id, from_name, from_email, message, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(randomUUID(), talentId, fromName, fromEmail, message, new Date().toISOString());
+export async function addInquiry(talentId: string, fromName: string, fromEmail: string, message: string) {
+  await rpc<boolean>("tab_add_inquiry", {
+    p_talent_id: talentId,
+    p_from_name: fromName,
+    p_from_email: fromEmail,
+    p_message: message,
+  });
 }
 
-export function listInquiries(talentId: string): Inquiry[] {
-  return db()
-    .prepare(
-      `SELECT id, from_name, from_email, message, created_at FROM inquiries WHERE talent_id = ? ORDER BY created_at DESC`
-    )
-    .all(talentId) as unknown as Inquiry[];
+export async function listInquiries(token: string): Promise<Inquiry[]> {
+  return rpc<Inquiry[]>("tab_list_inquiries", { p_token_hash: hashToken(token) });
 }

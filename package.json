@@ -9,6 +9,7 @@
     "postinstall": "node scripts/copy-models.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "@vladmandic/face-api": "^1.7.15",
     "next": "^16.4.6",
     "react": "^19.3.1",

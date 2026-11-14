@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TalentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const talent = getTalent(id);
+  const talent = await getTalent(id);
   if (!talent) notFound();
 
   return (
@@ -14,7 +14,10 @@ export default async function TalentPage({ params }: { params: Promise<{ id: str
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="portrait" src={`/api/photos/${talent.id}`} alt={`Photo of ${talent.name}`} />
       <div>
-        <p className="eyebrow">{talent.category}</p>
+        <p className="eyebrow">
+          {talent.category}
+          {talent.is_sample && <span className="tag">Sample profile</span>}
+        </p>
         <h1>{talent.name}</h1>
         <p className="lede">{talent.headline}</p>
         <dl className="facts">
@@ -43,12 +46,20 @@ export default async function TalentPage({ params }: { params: Promise<{ id: str
           ))}
         </div>
         {talent.bio && <p className="bio">{talent.bio}</p>}
-        <h2>Send an inquiry</h2>
-        <p className="hint">
-          {talent.name}&apos;s contact details are private. Your message is delivered through the
-          platform.
-        </p>
-        <InquiryForm talentId={talent.id} talentName={talent.name} />
+        {talent.is_sample ? (
+          <div className="notice info">
+            This is a sample profile for demonstration. The person and photo are fictional.
+          </div>
+        ) : (
+          <>
+            <h2>Send an inquiry</h2>
+            <p className="hint">
+              {talent.name}&apos;s contact details are private. Your message is delivered through
+              the platform.
+            </p>
+            <InquiryForm talentId={talent.id} talentName={talent.name} />
+          </>
+        )}
       </div>
     </div>
   );

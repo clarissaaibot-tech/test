@@ -25,6 +25,24 @@ function load(): Promise<FaceApi> {
 
 export class FaceError extends Error {}
 
+/** Shrinks a photo to a small JPEG in the browser so uploads stay light. */
+export async function resizePhoto(file: File, maxSide = 720): Promise<File> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob) throw new FaceError("We couldn't read that image. Try a JPG or PNG.");
+    return new File([blob], "photo.jpg", { type: "image/jpeg" });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();

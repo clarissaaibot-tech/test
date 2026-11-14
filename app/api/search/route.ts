@@ -6,11 +6,12 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const descriptor = parseDescriptor(body?.descriptor);
   if (!descriptor) return NextResponse.json({ error: "Invalid face data." }, { status: 400 });
-  const matches = findLookalikes(descriptor).map(({ talent, score }) => ({
+  const matches = (await findLookalikes(descriptor)).map(({ talent, score }) => ({
     id: talent.id,
     name: talent.name,
     headline: talent.headline,
     skills: talent.skills,
+    isSample: talent.is_sample,
     city: talent.city,
     score,
   }));

@@ -155,3 +155,4 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--ink); outli
 .options label { display: inline-flex; align-items: center; gap: 8px; font-size: 0.95rem; }
 .options input { width: 18px; height: 18px; accent-color: var(--ink); }
 .searchbar input, .searchbar select { height: 46px; }
+.sample { position: absolute; right: 8px; top: 8px; background: rgba(255, 253, 249, 0.92); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 3px 9px; border-radius: 999px; }

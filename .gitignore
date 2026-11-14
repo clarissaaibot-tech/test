@@ -4,3 +4,4 @@ node_modules
 /public/models
 next-env.d.ts
 *.tsbuildinfo
+.env*.local
